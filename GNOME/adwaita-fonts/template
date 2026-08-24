@@ -1,0 +1,13 @@
+# Template file for 'adwaita-fonts'
+pkgname=adwaita-fonts
+version=51.0
+revision=1
+build_style=meson
+depends="font-util"
+short_desc="Typefaces for GNOME"
+maintainer="oreo639 <oreo6391@gmail.com>"
+license="OFL-1.1"
+homepage="https://gitlab.gnome.org/GNOME/adwaita-fonts"
+distfiles="${GNOME_SITE}/adwaita-fonts/${version%.*}/adwaita-fonts-${version}.tar.xz"
+checksum=fa104ae2c1b96580d322f563ffe8b2dfca5296b0eca4971efd2d8011405123d2
+font_dirs="/usr/share/fonts/Adwaita/"

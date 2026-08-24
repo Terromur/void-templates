@@ -1,0 +1,29 @@
+# Template file for 'pipewire-control-center'
+pkgname=pipewire-control-center
+version=0.5.0
+revision=1
+archs="x86_64"
+wrksrc="PipeWireController-${version}"
+short_desc="GTK4/libadwaita control center for PipeWire"
+maintainer="Terromur <terromuroz@proton.me>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/knightinfected/PipeWireController"
+distfiles="${homepage}/archive/refs/tags/v${version}.tar.gz"
+checksum=f63481fddf99a501cb9e24d36cccf46f3e869f88c001d8235a38960281263b12
+
+depends="pipewire wireplumber gtk4 libadwaita python3 python3-gobject python3-numpy python3-soundfile"
+
+do_install() {
+    vmkdir usr/share/${pkgname}
+    vcopy pwctl usr/share/${pkgname}
+    
+    vinstall pipewire-control-center 755 usr/share/${pkgname}
+
+    vinstall io.github.knightinfected.PipeWireControlCenter.desktop 644 usr/share/applications
+    vlicense LICENSE
+
+    # Создаем директорию usr/bin внутри DESTDIR перед созданием симлинков
+    vmkdir usr/bin
+    ln -s /usr/share/${pkgname}/pipewire-control-center ${DESTDIR}/usr/bin/pipewire-control-center
+    ln -s /usr/share/${pkgname}/pipewire-control-center ${DESTDIR}/usr/bin/pwcc
+}

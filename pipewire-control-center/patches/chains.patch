@@ -1,0 +1,43 @@
+--- a/pwctl/backend/chains.py
++++ b/pwctl/backend/chains.py
+@@ -29,24 +29,6 @@
+ META_DIR = APP_DIR / 'chains'
+ GEN_DIR = APP_DIR / 'generated'
+ UNIT_NAME = 'pwctl-chain@.service'
+-UNIT_PATH = Path.home() / '.config/systemd/user' / UNIT_NAME
+-
+-UNIT_TEXT = f"""# Managed by PipeWire Controller — runs one filter chain per instance.
+-[Unit]
+-Description=PipeWire Controller filter chain: %i
+-After=pipewire.service
+-BindsTo=pipewire.service
+-
+-[Service]
+-Type=simple
+-Environment=PIPEWIRE_CONFIG_DIR=%h/.config/pipewire-controller/generated
+-ExecStart=/usr/bin/pipewire -c %i.conf
+-Restart=on-failure
+-RestartSec=2
+-
+-[Install]
+-WantedBy=pipewire.service
+-"""
+ 
+ 
+ @dataclass
+@@ -99,13 +81,8 @@
+ 
+ 
+ def ensure_unit() -> bool:
+-    """Install/refresh the systemd template unit. True if it (re)wrote it."""
+-    UNIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+-    if UNIT_PATH.is_file() and UNIT_PATH.read_text() == UNIT_TEXT:
+-        return False
+-    UNIT_PATH.write_text(UNIT_TEXT)
+-    system.daemon_reload()
+-    return True
++    """Install/refresh the nonsystemd runner scripts."""
++    return system.ensure_unit()
+ 
+ 
+ def list_chains() -> list[ChainMeta]:

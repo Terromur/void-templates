@@ -1,0 +1,14 @@
+pkgname=cine
+version=1.8.4
+revision=1
+build_style=meson
+make_check=yes
+hostmakedepends="blueprint-compiler pkg-config gettext"
+makedepends="gtk4-devel libadwaita-devel mpv-devel python3-gobject-devel"
+depends="gtk4 libadwaita mpv python3-gobject python3-mpv"
+short_desc="Video Player for Linux"
+maintainer="Terromur <terromuroz@proton.me>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/diegopvlk/Cine"
+distfiles="https://github.com/diegopvlk/Cine/archive/refs/tags/v${version}.tar.gz"
+checksum=5dafaf8523f02069028a9055d6592e178c218c9dccafab80db18b0b7d427252d

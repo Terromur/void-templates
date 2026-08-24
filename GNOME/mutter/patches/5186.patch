@@ -1,0 +1,204 @@
+From 521f3acc7f008cc4a72e76b7d082327210172edc Mon Sep 17 00:00:00 2001
+From: Daniel van Vugt <daniel.van.vugt@canonical.com>
+Date: Thu, 16 Jul 2026 18:25:59 +0800
+Subject: [PATCH] clutter/frame-clock: Use a more optimistic minimum update
+ time
+
+In recent releases, `min_update_time_estimate_us` had ballooned to a
+value of multiple refresh intervals. That resulted in the while loop
+of `calculate_next_update_time_us` iterating past values of
+`next_presentation_time_us` that might sometimes be achievable
+hence some unnecessary frame skips. So it wasn't a minimum like that
+originally intended in 45244852ac.
+
+Now we drop the old `SYNC_DELAY_FALLBACK_FRACTION` which was originally
+intended to represent a maximum update time, and use a more optimistic
+minimum update time representing the fastest possible render time.
+
+Under heavy triple buffering this subjectively results in a 10%-25%
+improvement in average frame rates without any compromise to phase or
+latency optimisations.
+
+Fixes: e8a2c1ad ("clutter/frame-clock: Allow optimistic late start...")
+Fixes: a5b62cff ("clutter/frame-clock: Remove min_render_time_allowed_us")
+---
+ clutter/clutter/clutter-frame-clock.c | 63 ++++++++++++++-------------
+ 1 file changed, 33 insertions(+), 30 deletions(-)
+
+diff --git a/clutter/clutter/clutter-frame-clock.c b/clutter/clutter/clutter-frame-clock.c
+index feac00beb46..2702c1584b7 100644
+--- a/clutter/clutter/clutter-frame-clock.c
++++ b/clutter/clutter/clutter-frame-clock.c
+@@ -42,8 +42,6 @@ enum
+ 
+ static guint signals[N_SIGNALS];
+ 
+-#define SYNC_DELAY_FALLBACK_FRACTION 0.875f
+-
+ #define MINIMUM_REFRESH_RATE 30.f
+ 
+ G_DEFINE_ABSTRACT_TYPE (ClutterFrameClockDriver, clutter_frame_clock_driver,
+@@ -856,8 +854,9 @@ maybe_want_triple_buffering (ClutterFrameClock *frame_clock)
+ }
+ 
+ static gboolean
+-clutter_frame_clock_estimate_max_update_time_us (ClutterFrameClock *frame_clock,
+-                                                 int64_t           *max_update_time_estimate_us)
++clutter_frame_clock_estimate_update_times_us (ClutterFrameClock *frame_clock,
++                                              int64_t           *min_update_time_estimate_us,
++                                              int64_t           *max_update_time_estimate_us)
+ {
+   int64_t maximum_us;
+ 
+@@ -883,10 +882,12 @@ clutter_frame_clock_estimate_max_update_time_us (ClutterFrameClock *frame_clock,
+    * - The duration of vertical blank.
+    * - A constant to account for variations in the above estimates.
+    */
+-  *max_update_time_estimate_us =
+-    get_max_update_duration_us (frame_clock) +
++  *min_update_time_estimate_us =
+     frame_clock->vblank_duration_us +
+     clutter_max_render_time_constant_us;
++  *max_update_time_estimate_us =
++    *min_update_time_estimate_us +
++    get_max_update_duration_us (frame_clock);
+ 
+   *max_update_time_estimate_us = CLAMP (*max_update_time_estimate_us, 0,
+                                         maximum_us);
+@@ -933,22 +934,24 @@ calculate_next_update_time_us (ClutterFrameClock *frame_clock,
+   int64_t last_presentation_time_us;
+   int64_t now_us;
+   int64_t refresh_interval_us;
++  int64_t min_update_time_estimate_us;
+   int64_t max_update_time_estimate_us;
+   int64_t next_presentation_time_us;
+   int64_t next_smooth_presentation_time_us = 0;
+   int64_t next_update_time_us;
+-  gboolean have_max_update_time_estimate;
++  gboolean have_update_time_estimates;
+ 
+   now_us = g_get_monotonic_time ();
+ 
+   refresh_interval_us = frame_clock->refresh_interval_us;
+ 
+-  have_max_update_time_estimate =
+-    clutter_frame_clock_estimate_max_update_time_us (frame_clock,
+-                                                     &max_update_time_estimate_us);
++  have_update_time_estimates =
++    clutter_frame_clock_estimate_update_times_us (frame_clock,
++                                                  &min_update_time_estimate_us,
++                                                  &max_update_time_estimate_us);
+ 
+   if (!last_presentation ||
+-      !have_max_update_time_estimate ||
++      !have_update_time_estimates ||
+       last_presentation->presentation_time_us == 0 ||
+       !(last_presentation->presentation_flags & CLUTTER_FRAME_INFO_FLAG_VSYNC))
+     {
+@@ -1044,15 +1047,6 @@ calculate_next_update_time_us (ClutterFrameClock *frame_clock,
+     {
+       if (next_presentation_time_us - max_update_time_estimate_us < now_us)
+         {
+-          int64_t min_update_time_estimate_us =
+-            (int64_t) (refresh_interval_us * SYNC_DELAY_FALLBACK_FRACTION);
+-
+-          if (maybe_want_triple_buffering (frame_clock))
+-            min_update_time_estimate_us += refresh_interval_us;
+-
+-          if (min_update_time_estimate_us > max_update_time_estimate_us)
+-            min_update_time_estimate_us = max_update_time_estimate_us;
+-
+           while (next_presentation_time_us - min_update_time_estimate_us <
+                  now_us)
+             next_presentation_time_us += refresh_interval_us;
+@@ -1082,6 +1076,7 @@ calculate_next_variable_update_time_us (ClutterFrameClock *frame_clock,
+   int64_t last_presentation_time_us;
+   int64_t now_us;
+   int64_t refresh_interval_us;
++  int64_t min_update_time_estimate_us;
+   int64_t max_update_time_estimate_us;
+   int64_t next_presentation_time_us;
+   int64_t next_update_time_us;
+@@ -1093,8 +1088,9 @@ calculate_next_variable_update_time_us (ClutterFrameClock *frame_clock,
+ 
+   if (!last_presentation ||
+       last_presentation->presentation_time_us == 0 ||
+-      !clutter_frame_clock_estimate_max_update_time_us (frame_clock,
+-                                                        &max_update_time_estimate_us))
++      !clutter_frame_clock_estimate_update_times_us (frame_clock,
++                                                     &min_update_time_estimate_us,
++                                                     &max_update_time_estimate_us))
+     {
+       const Frame *last_dispatch = frame_clock->prev_dispatch;
+ 
+@@ -1192,13 +1188,15 @@ clutter_frame_clock_uninhibit (ClutterFrameClock *frame_clock)
+ static gboolean
+ want_triple_buffering (ClutterFrameClock *frame_clock)
+ {
++  int64_t min_update_time_estimate_us;
+   int64_t max_update_time_estimate_us;
+ 
+   if (!maybe_want_triple_buffering (frame_clock))
+     return FALSE;
+ 
+-  if (clutter_frame_clock_estimate_max_update_time_us (frame_clock,
+-                                                       &max_update_time_estimate_us) &&
++  if (clutter_frame_clock_estimate_update_times_us (frame_clock,
++                                                    &min_update_time_estimate_us,
++                                                    &max_update_time_estimate_us) &&
+       max_update_time_estimate_us < frame_clock->refresh_interval_us)
+     return FALSE;
+ 
+@@ -1375,6 +1373,7 @@ clutter_frame_clock_schedule_update_later (ClutterFrameClock *frame_clock,
+   int64_t next_presentation_time_us = 0;
+   int64_t next_frame_deadline_us;
+   int64_t ready_time_us = 0, extrapolated_presentation_time_us;
++  int64_t min_update_time_estimate_us;
+   int64_t max_update_time_estimate_us;
+   int64_t cycles;
+   ClutterFrameClockState next_state = frame_clock->state;
+@@ -1450,11 +1449,11 @@ clutter_frame_clock_schedule_update_later (ClutterFrameClock *frame_clock,
+       ready_time_us = extrapolated_presentation_time_us - max_update_time_estimate_us;
+       break;
+     case CLUTTER_FRAME_CLOCK_MODE_VARIABLE:
+-      if (!clutter_frame_clock_estimate_max_update_time_us (frame_clock,
+-                                                            &max_update_time_estimate_us))
++      if (!clutter_frame_clock_estimate_update_times_us (frame_clock,
++                                                         &min_update_time_estimate_us,
++                                                         &max_update_time_estimate_us))
+         {
+-          max_update_time_estimate_us = (int64_t) (frame_clock->refresh_interval_us *
+-                                                   SYNC_DELAY_FALLBACK_FRACTION);
++          max_update_time_estimate_us = clutter_max_render_time_constant_us;
+         }
+       ready_time_us = target_us - max_update_time_estimate_us;
+       frame_clock->is_target_presentation_time = TRUE;
+@@ -1812,12 +1811,14 @@ GString *
+ clutter_frame_clock_get_max_render_time_debug_info (ClutterFrameClock *frame_clock)
+ {
+   const Frame *last_presentation = frame_clock->prev_presentation;
++  int64_t min_update_time_estimate_us;
+   int64_t max_update_time_estimate_us;
+   GString *string;
+ 
+   string = g_string_new ("Max update time estimate: ");
+-  if (!clutter_frame_clock_estimate_max_update_time_us (frame_clock,
+-                                                        &max_update_time_estimate_us))
++  if (!clutter_frame_clock_estimate_update_times_us (frame_clock,
++                                                     &min_update_time_estimate_us,
++                                                     &max_update_time_estimate_us))
+     {
+       g_string_append (string, "unknown");
+       return string;
+@@ -1836,6 +1837,8 @@ clutter_frame_clock_get_max_render_time_debug_info (ClutterFrameClock *frame_clo
+                           get_max_update_duration_us (frame_clock));
+   g_string_append_printf (string, "\nConstant: %d µs",
+                           clutter_max_render_time_constant_us);
++  g_string_append_printf (string, "\nMin update time estimate: %ld µs",
++                          min_update_time_estimate_us);
+ 
+   return string;
+ }
+-- 
+GitLab
+

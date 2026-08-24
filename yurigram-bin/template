@@ -1,0 +1,32 @@
+# Template file for 'yurigram-bin'
+pkgname=yurigram-bin
+version=7.0.9
+revision=1
+archs="x86_64"
+short_desc="Yet another unofficial tdesktop client"
+maintainer="Revincx <revincx233@gmail.com>"
+license="GPL-3.0-only"
+homepage="https://github.com/Revincx/Yurigram"
+provides="yurigram-${version}_${revision}"
+replaces="yukigram-rua>=0 yukigram-rua-bin>=0"
+conflicts="yurigram>=0 yukigram-rua>=0 yukigram-rua-bin>=0"
+depends="fontconfig freetype glib glibc hicolor-icon-theme libX11"
+distfiles="https://github.com/Revincx/Yurigram/releases/download/${version}-${revision}/yurigram-${version}-${revision}-${XBPS_TARGET_MACHINE}.tar.gz"
+checksum="4d0faef4d7d18381bcc323dd694ca583f3ba3ba52a485c0affbad722c544c277"
+nostrip=yes
+do_install() {
+	vbin bin/yurigram
+	vcopy share usr/share
+	vmkdir usr/share/applications
+	cat > "${DESTDIR}/usr/share/applications/yurigram.desktop" <<EOF
+[Desktop Entry]
+Name=Yurigram
+Comment=Yet another unofficial tdesktop client
+Exec=/usr/bin/yurigram %U
+Icon=yurigram
+Terminal=false
+Type=Application
+Categories=Network;InstantMessaging;
+MimeType=x-scheme-handler/tg;
+EOF
+}

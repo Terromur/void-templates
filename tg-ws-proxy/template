@@ -1,0 +1,31 @@
+# Template file for 'tg-ws-proxy'
+pkgname=tg-ws-proxy
+version=1.10.0
+revision=1
+archs="x86_64"
+short_desc="Telegram Desktop WebSocket bridge proxy"
+maintainer="Terromur <terromuroz@proton.me>"
+license="MIT"
+homepage="https://github.com/Flowseal/tg-ws-proxy"
+changelog="https://github.com/Flowseal/tg-ws-proxy/releases"
+depends="gtk+3 libayatana-appindicator"
+_bin=TgWsProxy_linux_amd64
+distfiles="https://github.com/Flowseal/tg-ws-proxy/releases/download/v${version}/${_bin}
+https://raw.githubusercontent.com/Flowseal/tg-ws-proxy/main/LICENSE"
+checksum="bb14856f751b3d275b8507f8e55fd80678d2eb7f3f7ae93a448c805045c7811f
+ 2a98256df06052c3b132cf522e356da90ade2f749b6f7435f7cdafd1d9123fa2"
+skip_extraction="${_bin} LICENSE"
+nostrip=yes
+nopie=yes
+do_install() {
+	vbin "${XBPS_SRCDISTDIR}/${pkgname}-${version}/${_bin}" tg-ws-proxy
+        vlicense "${XBPS_SRCDISTDIR}/${pkgname}-${version}/LICENSE"
+	vinstall /dev/stdin 644 usr/share/applications tg-ws-proxy.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=TG WS Proxy
+Comment=Telegram Desktop WebSocket bridge proxy
+Exec=tg-ws-proxy
+Categories=Network;
+EOF
+}

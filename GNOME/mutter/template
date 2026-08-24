@@ -1,0 +1,58 @@
+# Template file for 'mutter'
+pkgname=mutter
+version=50.4
+revision=1
+build_helper="gir"
+build_style=meson
+configure_args="-Degl_device=true -Dudev=true -Dnative_backend=true
+ -Dprofiler=false -Dintrospection=true -Dxwayland_path=/usr/bin/Xwayland
+ -Dxwayland_initfd=disabled -Dtests=disabled"
+hostmakedepends="gettext glib-devel pkg-config zenity wayland-devel xorg-server
+ xorg-server-xwayland python3-argcomplete python3-docutils"
+makedepends="elogind-devel glib-devel gnome-desktop-devel graphene-devel
+ json-glib-devel libglib-devel libSM-devel libXtst-devel libcanberra-devel
+ libinput-devel MesaLib-devel pipewire-devel startup-notification-devel gtk4-devel
+ wayland-protocols gnome-settings-daemon-devel libgudev-devel libwacom-devel libei-devel
+ libdisplay-info-devel glycin-devel"
+depends="gsettings-desktop-schemas desktop-file-utils"
+short_desc="Wayland display server, X11 window manager and compositor library"
+maintainer="Orphaned <orphan@voidlinux.org>"
+license="GPL-2.0-or-later"
+homepage="https://wiki.gnome.org/Projects/Mutter/"
+#changelog="https://gitlab.gnome.org/GNOME/mutter/-/raw/main/NEWS"
+changelog="https://gitlab.gnome.org/GNOME/mutter/-/raw/gnome-50/NEWS"
+distfiles="${GNOME_SITE}/mutter/${version%%.*}/mutter-${version}.tar.xz"
+checksum=fde8df8a746500c51f1c925b51e57c3dd87007233bef563079e831f53bfa3b56
+shlib_provides="libmutter-clutter-18.so libmutter-cogl-18.so
+ libmutter-cogl-pango-18.so libmutter-mtk-18.so"
+make_check=no # needs a full graphical session
+
+# Upstream keeps pulling generated headers even though it can cause race
+# conditions in meson/ninja
+pre_build() {
+	ninja ${makejobs} -C build src/meta-dbus-display-config.h
+}
+
+post_install() {
+	# modify the pkg-config files to respect ${pc_sysrootdir} for variables that are
+	# meant to be called with 'pkg-config --variable'
+	vsed -e 's|^girdir.*|girdir=${pc_sysrootdir}/${libdir}/mutter-18|g' \
+		 -i ${DESTDIR}/usr/lib/pkgconfig/libmutter-18.pc
+	vmkdir usr/share/bash-completion/completions
+	mv $DESTDIR/etc/bash_completion.d/* \
+		$DESTDIR/usr/share/bash-completion/completions
+}
+
+mutter-devel_package() {
+	depends="gtk4-devel graphene-devel clutter-devel glycin-devel
+	 libX11-devel libXtst-devel mutter-${version}_${revision}
+	 gnome-settings-daemon-devel libei-devel libdisplay-info-devel
+	 libcanberra-devel libwacom-devel libICE-devel libSM-devel"
+	short_desc+=" - development files"
+	pkg_install() {
+		vmove usr/include
+		vmove usr/lib/pkgconfig
+		vmove "usr/lib/mutter-18/*.gir"
+		vmove "usr/lib/*.so"
+	}
+}

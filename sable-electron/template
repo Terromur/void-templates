@@ -1,0 +1,29 @@
+# Template file for 'sable-electron'
+pkgname=sable-electron
+version=1.1.1
+revision=1
+_commit=2df54ff95eab269633f5f341c7441523c9e1574b
+archs="x86_64"
+hostmakedepends="pnpm"
+depends="hicolor-icon-theme desktop-file-utils libnotify xdg-utils"
+short_desc="Yet another matrix client — Unofficial electron version"
+maintainer="Terromur <terromuroz@proton.me>"
+license="AGPL-3.0-only"
+homepage="https://github.com/chopper1337/sable-electron"
+distfiles="https://github.com/chopper1337/sable-electron/archive/${_commit}.tar.gz"
+checksum=50d652e414d160ac1ae08e62a93eb7fde1800dae8239529783d3b19110a525c9
+wrksrc="sable-electron-${_commit}"
+nostrip=yes
+do_build() {
+	pnpm install --frozen-lockfile
+	pnpm run build:unpack
+}
+do_install() {
+	vmkdir usr/lib/sable-electron
+	vcopy "dist/linux-unpacked/*" usr/lib/sable-electron
+	vmkdir usr/bin
+	vinstall aur/sable-electron.sh 755 usr/bin sable-electron
+	vinstall aur/sable-electron.desktop 644 usr/share/applications
+	vinstall resources/sable.svg 644 usr/share/icons/hicolor/scalable/apps sable-electron.svg
+	vlicense LICENSE
+}

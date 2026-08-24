@@ -1,0 +1,26 @@
+# Template file for 'bettertricks-bin'
+pkgname=bettertricks-bin
+version=1.0
+revision=1
+archs="x86_64"
+short_desc="Recovery-first Wine prefix manager and Winetricks-compatible recipe engine (binary)"
+maintainer="Terromur <terromuroz@proton.me>"
+homepage="https://github.com/RamazanBerk20/Bettertricks"
+license="LGPL-2.1-or-later"
+depends="libwebkit2gtk41 cabextract 7zip unzip gzip tar xz zstd"
+hostmakedepends="libarchive"
+conflicts="bettertricks"
+provides="bettertricks-${version}_${revision}"
+_debname="Bettertricks_${version}_amd64.deb"
+distfiles="${homepage}/releases/download/v${version}/${_debname}"
+checksum="80d8ba1f08e9fac32950c58f11c237f6add0f6924355aaf90f88dca8520aa0d6"
+skip_extraction="${_debname}"
+do_install() {
+	local deb_file="${XBPS_SRCDISTDIR}/${pkgname}-${version}/${_debname}"
+	ar x "$deb_file"
+	bsdtar -xf data.tar.* -C "${DESTDIR}"
+	rm -f "${DESTDIR}/usr/share/applications/Bettertricks.desktop"
+	vinstall "${FILESDIR}/io.bettertricks.desktop" 644 usr/share/applications
+	vinstall "${FILESDIR}/io.bettertricks.desktop.metainfo.xml" 644 usr/share/metainfo
+	vlicense "${FILESDIR}/LICENSE"
+}

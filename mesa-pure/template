@@ -1,0 +1,90 @@
+# Template file for 'mesa-pure'
+pkgname=mesa-pure
+version=26.2.1
+revision=1
+build_style=meson
+short_desc="Purely personal Mesa build (radeonsi + RADV, Clang, no LLVM)"
+maintainer="Terromur <terromuroz@proton.me>"
+license="MIT, BSD-3-Clause, SGI-B-2.0"
+homepage="https://www.mesa3d.org/"
+distfiles="https://archive.mesa3d.org/mesa-${version}.tar.xz"
+checksum="c47e81bddc4760360a41ac3c5acec38acb81f9d750ecef47e7f3adc7021a4442"
+hostmakedepends="meson ninja pkg-config python3-Mako python3-packaging python3-ply python3-yaml cbindgen glslang wayland-protocols xorgproto byacc flex cmake"
+makedepends="expat-devel libdrm-devel libelf libglvnd-devel libpng-devel libva-devel libX11-devel libxcb-devel libXdamage-devel libXext-devel libXfixes-devel libXrandr-devel libxshmfence-devel libXxf86vm-devel libxml2-devel libdisplay-info-devel elfutils-devel lm_sensors vulkan-loader-devel wayland-devel xcb-util-keysyms-devel zlib-devel zstd valgrind-devel clang22 lld22 lua54-devel"
+depends="expat libdrm libelf libglvnd libX11 libxcb libXdamage libXext libXfixes libxshmfence libXxf86vm lm_sensors python3 vulkan-loader wayland xcb-util-keysyms zlib zstd"
+provides="
+    mesa-${version}_${revision}
+    mesa-libgl-${version}_${revision}
+    libva-mesa-driver-${version}_${revision}
+    vulkan-radeon-${version}_${revision}
+    vulkan-mesa-layers-${version}_${revision}
+    vulkan-mesa-device-select-${version}_${revision}
+    vulkan-mesa-implicit-layers-${version}_${revision}
+    opengl-driver-${version}_${revision}
+    vulkan-driver-${version}_${revision}"
+conflicts="
+    mesa>=0 mesa-libgl>=0 libva-mesa-driver>=0 vulkan-radeon>=0
+    vulkan-mesa-layers>=0 vulkan-mesa-device-select>=0
+    vulkan-mesa-implicit-layers>=0 opencl-clover-mesa>=0"
+configure_args=(
+    -Dllvm=disabled
+    -Damd-use-llvm=false
+    -Dandroid-libbacktrace=disabled
+    -Db_ndebug=true
+    -Dgallium-mediafoundation=disabled
+    -Dgallium-drivers=radeonsi
+    -Dgallium-extra-hud=false
+    "-Dc_args=-march=native -O2 -fomit-frame-pointer -funsafe-math-optimizations -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -fno-stack-check -D_FORTIFY_SOURCE=0"
+    "-Dc_link_args=-Wl,-O1 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,-z,pack-relative-relocs -Wl,-z,norelro"
+    "-Dcpp_args=-march=native -O2 -fomit-frame-pointer -funsafe-math-optimizations -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -fno-stack-check -D_FORTIFY_SOURCE=0 -Wp,-U_GLIBCXX_ASSERTIONS"
+    "-Dcpp_link_args=-Wl,-O1 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,-z,pack-relative-relocs -Wl,-z,norelro"
+    -Dgles1=disabled
+    -Dglx=dri
+    -Dhtml-docs=disabled
+    -Dintel-rt=disabled
+    -Dlibunwind=disabled
+    -Dmicrosoft-clc=disabled
+    -Dplatforms=x11,wayland
+    -Dvalgrind=enabled
+    -Dvideo-codecs=all
+    -Dpython.bytecompile=2
+    -Dvulkan-beta=true
+    -Dvulkan-drivers=amd
+    -Dvulkan-layers=device-select,overlay,screenshot,vram-report-limit,anti-lag
+)
+pre_configure() {
+    cat > "${wrksrc}/clang-native.ini" <<EOF
+[binaries]
+c       = 'clang'
+cpp     = 'clang++'
+c_ld    = 'lld'
+cpp_ld  = 'lld'
+EOF
+    ulimit -n 4096
+}
+do_configure() {
+    meson setup \
+        --prefix=/usr \
+        --libdir=/usr/lib \
+        --libexecdir=/usr/libexec \
+        --bindir=/usr/bin \
+        --sbindir=/usr/bin \
+        --includedir=/usr/include \
+        --datadir=/usr/share \
+        --mandir=/usr/share/man \
+        --infodir=/usr/share/info \
+        --localstatedir=/var \
+        --sysconfdir=/etc \
+        --buildtype=plain \
+        --auto-features=auto \
+        --wrap-mode=nodownload \
+        -Ddefault_library=shared \
+        --native-file "${wrksrc}/clang-native.ini" \
+        "${configure_args[@]}" \
+        "${wrksrc}" build
+}
+post_install() {
+    ln -s /usr/lib/libGLX_mesa.so.0 \
+          "${DESTDIR}/usr/lib/libGLX_indirect.so.0"
+    vlicense "${wrksrc}/docs/license.rst"
+}

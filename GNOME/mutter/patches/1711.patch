@@ -1,0 +1,1819 @@
+From 04de38de2b1c81cfa5cb26f3389961e6a619b45b Mon Sep 17 00:00:00 2001
+From: Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
+Date: Wed, 27 Jan 2021 08:50:46 -0300
+Subject: [PATCH 1/9] screen-cast-*-stream-src: Switch to
+ cogl_framebuffer_flush()
+
+PipeWire recently introduced busy buffers, which actually fixes the last remaining
+issue that blocked us from downgrading these cogl_framebuffer_finish() calls into
+cogl_framebuffer_flush() ones.
+
+Switch to cogl_framebuffer_flush() in all three stream sources.
+---
+ src/backends/meta-screen-cast-area-stream-src.c    | 2 +-
+ src/backends/meta-screen-cast-monitor-stream-src.c | 2 +-
+ src/backends/meta-screen-cast-window-stream-src.c  | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index 281f6f2e903..b7de04d7b6a 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -485,7 +485,7 @@ meta_screen_cast_area_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc
+                                       area, scale,
+                                       paint_flags);
+ 
+-  cogl_framebuffer_finish (framebuffer);
++  cogl_framebuffer_flush (framebuffer);
+ 
+   return TRUE;
+ }
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 3011d0d1939..6753f176a77 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -608,7 +608,7 @@ meta_screen_cast_monitor_stream_src_record_to_framebuffer (MetaScreenCastStreamS
+         }
+     }
+ 
+-  cogl_framebuffer_finish (framebuffer);
++  cogl_framebuffer_flush (framebuffer);
+ 
+   return TRUE;
+ }
+diff --git a/src/backends/meta-screen-cast-window-stream-src.c b/src/backends/meta-screen-cast-window-stream-src.c
+index 3fe8120f2f8..014a97c3247 100644
+--- a/src/backends/meta-screen-cast-window-stream-src.c
++++ b/src/backends/meta-screen-cast-window-stream-src.c
+@@ -501,7 +501,7 @@ meta_screen_cast_window_stream_src_record_to_framebuffer (MetaScreenCastStreamSr
+       break;
+     }
+ 
+-  cogl_framebuffer_finish (framebuffer);
++  cogl_framebuffer_flush (framebuffer);
+ 
+   return TRUE;
+ }
+-- 
+GitLab
+
+
+From faa7016958d03d1448121214ce21410ba13534e2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 11:34:06 +0100
+Subject: [PATCH 2/9] screencast: Add a convenience method to get the backend
+
+This is used all over the place, let's not duplicate it everywhere and
+add a small convenience method meta_screen_cast_stream_src_get_backend().
+---
+ .../meta-screen-cast-area-stream-src.c        | 30 +++++---------
+ .../meta-screen-cast-monitor-stream-src.c     | 40 ++++++++-----------
+ src/backends/meta-screen-cast-stream-src.c    | 11 +++++
+ src/backends/meta-screen-cast-stream-src.h    |  2 +
+ .../meta-screen-cast-window-stream-src.c      | 23 +++--------
+ 5 files changed, 46 insertions(+), 60 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index b7de04d7b6a..7c8a3ad8d53 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -71,18 +71,6 @@ get_stage (MetaScreenCastAreaStreamSrc *area_src)
+   return meta_screen_cast_area_stream_get_stage (area_stream);
+ }
+ 
+-static MetaBackend *
+-get_backend (MetaScreenCastAreaStreamSrc *area_src)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+-  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaScreenCastSession *session = meta_screen_cast_stream_get_session (stream);
+-  MetaScreenCast *screen_cast =
+-    meta_screen_cast_session_get_screen_cast (session);
+-
+-  return meta_screen_cast_get_backend (screen_cast);
+-}
+-
+ static void
+ meta_screen_cast_area_stream_src_get_specs (MetaScreenCastStreamSrc *src,
+                                             int                     *width,
+@@ -108,7 +96,7 @@ is_cursor_in_stream (MetaScreenCastAreaStreamSrc *area_src)
+   MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaRectangle *area;
+@@ -186,12 +174,13 @@ cursor_changed (MetaCursorTracker           *cursor_tracker,
+ static void
+ inhibit_hw_cursor (MetaScreenCastAreaStreamSrc *area_src)
+ {
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+   MetaHwCursorInhibitor *inhibitor;
+   MetaBackend *backend;
+ 
+   g_return_if_fail (!area_src->hw_cursor_inhibited);
+ 
+-  backend = get_backend (area_src);
++  backend = meta_screen_cast_stream_src_get_backend (src);
+   inhibitor = META_HW_CURSOR_INHIBITOR (area_src);
+   meta_backend_add_hw_cursor_inhibitor (backend, inhibitor);
+ 
+@@ -201,12 +190,13 @@ inhibit_hw_cursor (MetaScreenCastAreaStreamSrc *area_src)
+ static void
+ uninhibit_hw_cursor (MetaScreenCastAreaStreamSrc *area_src)
+ {
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+   MetaHwCursorInhibitor *inhibitor;
+   MetaBackend *backend;
+ 
+   g_return_if_fail (area_src->hw_cursor_inhibited);
+ 
+-  backend = get_backend (area_src);
++  backend = meta_screen_cast_stream_src_get_backend (src);
+   inhibitor = META_HW_CURSOR_INHIBITOR (area_src);
+   meta_backend_remove_hw_cursor_inhibitor (backend, inhibitor);
+ 
+@@ -271,7 +261,7 @@ add_view_painted_watches (MetaScreenCastAreaStreamSrc *area_src,
+   MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   ClutterStage *stage;
+   MetaStage *meta_stage;
+@@ -323,7 +313,7 @@ meta_screen_cast_area_stream_src_enable (MetaScreenCastStreamSrc *src)
+ {
+   MetaScreenCastAreaStreamSrc *area_src =
+     META_SCREEN_CAST_AREA_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaMonitorManager *monitor_manager =
+     meta_backend_get_monitor_manager (backend);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+@@ -371,7 +361,7 @@ meta_screen_cast_area_stream_src_disable (MetaScreenCastStreamSrc *src)
+   MetaScreenCastAreaStreamSrc *area_src =
+     META_SCREEN_CAST_AREA_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+   ClutterStage *stage;
+   MetaStage *meta_stage;
+@@ -461,7 +451,7 @@ meta_screen_cast_area_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc
+     META_SCREEN_CAST_AREA_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   ClutterStage *stage;
+   MetaRectangle *area;
+   float scale;
+@@ -511,7 +501,7 @@ meta_screen_cast_area_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc *s
+     META_SCREEN_CAST_AREA_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+-  MetaBackend *backend = get_backend (area_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 6753f176a77..de3b8086a3e 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -146,22 +146,11 @@ before_stage_painted (MetaStage           *stage,
+     }
+ }
+ 
+-static MetaBackend *
+-get_backend (MetaScreenCastMonitorStreamSrc *monitor_src)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+-  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaScreenCastSession *session = meta_screen_cast_stream_get_session (stream);
+-  MetaScreenCast *screen_cast =
+-    meta_screen_cast_session_get_screen_cast (session);
+-
+-  return meta_screen_cast_get_backend (screen_cast);
+-}
+-
+ static gboolean
+ is_cursor_in_stream (MetaScreenCastMonitorStreamSrc *monitor_src)
+ {
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaMonitor *monitor;
+@@ -202,7 +191,8 @@ is_cursor_in_stream (MetaScreenCastMonitorStreamSrc *monitor_src)
+ static gboolean
+ is_redraw_queued (MetaScreenCastMonitorStreamSrc *monitor_src)
+ {
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   ClutterStage *stage = get_stage (monitor_src);
+   MetaMonitor *monitor = get_monitor (monitor_src);
+@@ -255,12 +245,13 @@ cursor_changed (MetaCursorTracker              *cursor_tracker,
+ static void
+ inhibit_hw_cursor (MetaScreenCastMonitorStreamSrc *monitor_src)
+ {
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+   MetaHwCursorInhibitor *inhibitor;
+   MetaBackend *backend;
+ 
+   g_return_if_fail (!monitor_src->hw_cursor_inhibited);
+ 
+-  backend = get_backend (monitor_src);
++  backend = meta_screen_cast_stream_src_get_backend (src);
+   inhibitor = META_HW_CURSOR_INHIBITOR (monitor_src);
+   meta_backend_add_hw_cursor_inhibitor (backend, inhibitor);
+ 
+@@ -270,12 +261,13 @@ inhibit_hw_cursor (MetaScreenCastMonitorStreamSrc *monitor_src)
+ static void
+ uninhibit_hw_cursor (MetaScreenCastMonitorStreamSrc *monitor_src)
+ {
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+   MetaHwCursorInhibitor *inhibitor;
+   MetaBackend *backend;
+ 
+   g_return_if_fail (monitor_src->hw_cursor_inhibited);
+ 
+-  backend = get_backend (monitor_src);
++  backend = meta_screen_cast_stream_src_get_backend (src);
+   inhibitor = META_HW_CURSOR_INHIBITOR (monitor_src);
+   meta_backend_remove_hw_cursor_inhibitor (backend, inhibitor);
+ 
+@@ -287,7 +279,8 @@ add_view_watches (MetaScreenCastMonitorStreamSrc *monitor_src,
+                   MetaStageWatchPhase             watch_phase,
+                   MetaStageWatchFunc              callback)
+ {
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   ClutterStage *stage;
+   MetaStage *meta_stage;
+@@ -369,7 +362,7 @@ meta_screen_cast_monitor_stream_src_enable (MetaScreenCastStreamSrc *src)
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaMonitorManager *monitor_manager =
+     meta_backend_get_monitor_manager (backend);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+@@ -412,7 +405,7 @@ meta_screen_cast_monitor_stream_src_disable (MetaScreenCastStreamSrc *src)
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+   ClutterStage *stage;
+   MetaStage *meta_stage;
+@@ -455,7 +448,8 @@ maybe_paint_cursor_sprite (MetaScreenCastMonitorStreamSrc *monitor_src,
+                            int                             stride,
+                            uint8_t                        *data)
+ {
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorSprite *cursor_sprite;
+@@ -552,7 +546,7 @@ meta_screen_cast_monitor_stream_src_record_to_framebuffer (MetaScreenCastStreamS
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   MetaMonitor *monitor;
+   MetaLogicalMonitor *logical_monitor;
+@@ -618,7 +612,7 @@ meta_screen_cast_monitor_stream_record_follow_up (MetaScreenCastStreamSrc *src)
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   ClutterStage *stage = get_stage (monitor_src);
+   MetaMonitor *monitor;
+@@ -657,7 +651,7 @@ meta_screen_cast_monitor_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (monitor_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+diff --git a/src/backends/meta-screen-cast-stream-src.c b/src/backends/meta-screen-cast-stream-src.c
+index 484a879b989..461b98f2037 100644
+--- a/src/backends/meta-screen-cast-stream-src.c
++++ b/src/backends/meta-screen-cast-stream-src.c
+@@ -607,6 +607,17 @@ meta_screen_cast_stream_src_maybe_record_frame (MetaScreenCastStreamSrc  *src,
+   pw_stream_queue_buffer (priv->pipewire_stream, buffer);
+ }
+ 
++MetaBackend *
++meta_screen_cast_stream_src_get_backend (MetaScreenCastStreamSrc *src)
++{
++  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
++  MetaScreenCastSession *session = meta_screen_cast_stream_get_session (stream);
++  MetaScreenCast *screen_cast =
++    meta_screen_cast_session_get_screen_cast (session);
++
++  return meta_screen_cast_get_backend (screen_cast);
++}
++
+ static gboolean
+ meta_screen_cast_stream_src_is_enabled (MetaScreenCastStreamSrc *src)
+ {
+diff --git a/src/backends/meta-screen-cast-stream-src.h b/src/backends/meta-screen-cast-stream-src.h
+index 3eaebf62c5d..9009525636f 100644
+--- a/src/backends/meta-screen-cast-stream-src.h
++++ b/src/backends/meta-screen-cast-stream-src.h
+@@ -109,4 +109,6 @@ void meta_screen_cast_stream_src_set_cursor_sprite_metadata (MetaScreenCastStrea
+                                                              int                      y,
+                                                              float                    scale);
+ 
++MetaBackend * meta_screen_cast_stream_src_get_backend (MetaScreenCastStreamSrc *src);
++
+ #endif /* META_SCREEN_CAST_STREAM_SRC_H */
+diff --git a/src/backends/meta-screen-cast-window-stream-src.c b/src/backends/meta-screen-cast-window-stream-src.c
+index 014a97c3247..92e781bebdf 100644
+--- a/src/backends/meta-screen-cast-window-stream-src.c
++++ b/src/backends/meta-screen-cast-window-stream-src.c
+@@ -47,18 +47,6 @@ G_DEFINE_TYPE (MetaScreenCastWindowStreamSrc,
+                meta_screen_cast_window_stream_src,
+                META_TYPE_SCREEN_CAST_STREAM_SRC)
+ 
+-static MetaBackend *
+-get_backend (MetaScreenCastWindowStreamSrc *window_src)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (window_src);
+-  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaScreenCastSession *session = meta_screen_cast_stream_get_session (stream);
+-  MetaScreenCast *screen_cast =
+-    meta_screen_cast_session_get_screen_cast (session);
+-
+-  return meta_screen_cast_get_backend (screen_cast);
+-}
+-
+ static MetaScreenCastWindowStream *
+ get_window_stream (MetaScreenCastWindowStreamSrc *window_src)
+ {
+@@ -107,7 +95,7 @@ maybe_draw_cursor_sprite (MetaScreenCastWindowStreamSrc *window_src,
+                           MetaRectangle                 *stream_rect)
+ {
+   MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (window_src);
+-  MetaBackend *backend = get_backend (window_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+@@ -186,7 +174,8 @@ maybe_blit_cursor_sprite (MetaScreenCastWindowStreamSrc *window_src,
+                           CoglFramebuffer               *framebuffer,
+                           MetaRectangle                 *stream_rect)
+ {
+-  MetaBackend *backend = get_backend (window_src);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (window_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   CoglContext *cogl_context =
+     clutter_backend_get_cogl_context (clutter_get_default_backend ());
+   MetaCursorRenderer *cursor_renderer =
+@@ -316,7 +305,7 @@ meta_screen_cast_window_stream_src_stop (MetaScreenCastWindowStreamSrc *window_s
+ {
+   MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (window_src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaBackend *backend = get_backend (window_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+ 
+   if (!window_src->screen_cast_window)
+@@ -394,7 +383,7 @@ meta_screen_cast_window_stream_src_enable (MetaScreenCastStreamSrc *src)
+ {
+   MetaScreenCastWindowStreamSrc *window_src =
+     META_SCREEN_CAST_WINDOW_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (window_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+   MetaWindowActor *window_actor;
+   MetaScreenCastStream *stream;
+@@ -521,7 +510,7 @@ meta_screen_cast_window_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+ {
+   MetaScreenCastWindowStreamSrc *window_src =
+     META_SCREEN_CAST_WINDOW_STREAM_SRC (src);
+-  MetaBackend *backend = get_backend (window_src);
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+-- 
+GitLab
+
+
+From ee9ea33b81016f93121938a0d2efe0b8bdd039b4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 11:49:11 +0100
+Subject: [PATCH 3/9] screencast: Move is_cursor_in_stream() into file for
+ common functions
+
+This function is pretty much the same in two stream source
+implementations, let's factor it out into a new file for common
+functions: meta-screen-cast-stream-src-common.c
+---
+ .../meta-screen-cast-area-stream-src.c        | 55 ++++-----------
+ .../meta-screen-cast-monitor-stream-src.c     | 70 ++++++-------------
+ .../meta-screen-cast-stream-src-common.c      | 60 ++++++++++++++++
+ .../meta-screen-cast-stream-src-common.h      | 29 ++++++++
+ .../meta-screen-cast-window-stream-src.c      |  1 +
+ src/meson.build                               |  2 +
+ 6 files changed, 126 insertions(+), 91 deletions(-)
+ create mode 100644 src/backends/meta-screen-cast-stream-src-common.c
+ create mode 100644 src/backends/meta-screen-cast-stream-src-common.h
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index 7c8a3ad8d53..a5ea02fa6da 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -28,6 +28,7 @@
+ #include "backends/meta-cursor-tracker-private.h"
+ #include "backends/meta-screen-cast-area-stream.h"
+ #include "backends/meta-screen-cast-session.h"
++#include "backends/meta-screen-cast-stream-src-common.h"
+ #include "backends/meta-stage-private.h"
+ #include "clutter/clutter.h"
+ #include "clutter/clutter-mutter.h"
+@@ -90,42 +91,6 @@ meta_screen_cast_area_stream_src_get_specs (MetaScreenCastStreamSrc *src,
+   *frame_rate = 60.0;
+ }
+ 
+-static gboolean
+-is_cursor_in_stream (MetaScreenCastAreaStreamSrc *area_src)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
+-  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+-  MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+-  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaCursorRenderer *cursor_renderer =
+-    meta_backend_get_cursor_renderer (backend);
+-  MetaRectangle *area;
+-  graphene_rect_t area_rect;
+-  MetaCursorSprite *cursor_sprite;
+-
+-  area = meta_screen_cast_area_stream_get_area (area_stream);
+-  area_rect = meta_rectangle_to_graphene_rect (area);
+-
+-  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+-  if (cursor_sprite)
+-    {
+-      graphene_rect_t cursor_rect;
+-
+-      cursor_rect = meta_cursor_renderer_calculate_rect (cursor_renderer,
+-                                                         cursor_sprite);
+-      return graphene_rect_intersection (&cursor_rect, &area_rect, NULL);
+-    }
+-  else
+-    {
+-      MetaCursorTracker *cursor_tracker =
+-        meta_backend_get_cursor_tracker (backend);
+-      graphene_point_t cursor_position;
+-
+-      meta_cursor_tracker_get_pointer (cursor_tracker, &cursor_position, NULL);
+-      return graphene_rect_contains_point (&area_rect, &cursor_position);
+-    }
+-}
+-
+ static gboolean
+ is_redraw_queued (MetaScreenCastAreaStreamSrc *area_src)
+ {
+@@ -447,8 +412,6 @@ meta_screen_cast_area_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc
+                                                         CoglFramebuffer          *framebuffer,
+                                                         GError                  **error)
+ {
+-  MetaScreenCastAreaStreamSrc *area_src =
+-    META_SCREEN_CAST_AREA_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+@@ -512,17 +475,17 @@ meta_screen_cast_area_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc *s
+   graphene_point_t cursor_position;
+   int x, y;
+ 
++  area = meta_screen_cast_area_stream_get_area (area_stream);
+   cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+ 
+   if (!meta_cursor_tracker_get_pointer_visible (cursor_tracker) ||
+-      !is_cursor_in_stream (area_src))
++      !meta_screen_cast_stream_src_common_is_cursor_in_stream (src, area))
+     {
+       meta_screen_cast_stream_src_unset_cursor_metadata (src,
+                                                          spa_meta_cursor);
+       return;
+     }
+ 
+-  area = meta_screen_cast_area_stream_get_area (area_stream);
+   scale = meta_screen_cast_area_stream_get_scale (area_stream);
+ 
+   meta_cursor_tracker_get_pointer (cursor_tracker, &cursor_position, NULL);
+@@ -569,10 +532,16 @@ meta_screen_cast_area_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc *s
+ static gboolean
+ meta_screen_cast_area_stream_src_is_cursor_inhibited (MetaHwCursorInhibitor *inhibitor)
+ {
+-  MetaScreenCastAreaStreamSrc *area_src =
+-    META_SCREEN_CAST_AREA_STREAM_SRC (inhibitor);
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (inhibitor);
++  MetaScreenCastStream *stream;
++  MetaScreenCastAreaStream *area_stream;
++  MetaRectangle *area;
++
++  stream = meta_screen_cast_stream_src_get_stream (src);
++  area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
++  area = meta_screen_cast_area_stream_get_area (area_stream);
+ 
+-  return is_cursor_in_stream (area_src);
++  return meta_screen_cast_stream_src_common_is_cursor_in_stream (src, area);
+ }
+ 
+ static void
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index de3b8086a3e..3624c4beb36 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -32,6 +32,7 @@
+ #include "backends/meta-monitor.h"
+ #include "backends/meta-screen-cast-monitor-stream.h"
+ #include "backends/meta-screen-cast-session.h"
++#include "backends/meta-screen-cast-stream-src-common.h"
+ #include "backends/meta-stage-private.h"
+ #include "clutter/clutter.h"
+ #include "clutter/clutter-mutter.h"
+@@ -146,48 +147,6 @@ before_stage_painted (MetaStage           *stage,
+     }
+ }
+ 
+-static gboolean
+-is_cursor_in_stream (MetaScreenCastMonitorStreamSrc *monitor_src)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+-  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaCursorRenderer *cursor_renderer =
+-    meta_backend_get_cursor_renderer (backend);
+-  MetaMonitor *monitor;
+-  MetaLogicalMonitor *logical_monitor;
+-  MetaRectangle logical_monitor_layout;
+-  graphene_rect_t logical_monitor_rect;
+-  MetaCursorSprite *cursor_sprite;
+-
+-  monitor = get_monitor (monitor_src);
+-  logical_monitor = meta_monitor_get_logical_monitor (monitor);
+-  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+-  logical_monitor_rect =
+-    meta_rectangle_to_graphene_rect (&logical_monitor_layout);
+-
+-  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+-  if (cursor_sprite)
+-    {
+-      graphene_rect_t cursor_rect;
+-
+-      cursor_rect = meta_cursor_renderer_calculate_rect (cursor_renderer,
+-                                                         cursor_sprite);
+-      return graphene_rect_intersection (&cursor_rect,
+-                                         &logical_monitor_rect,
+-                                         NULL);
+-    }
+-  else
+-    {
+-      MetaCursorTracker *cursor_tracker =
+-        meta_backend_get_cursor_tracker (backend);
+-      graphene_point_t cursor_position;
+-
+-      meta_cursor_tracker_get_pointer (cursor_tracker, &cursor_position, NULL);
+-      return graphene_rect_contains_point (&logical_monitor_rect,
+-                                           &cursor_position);
+-    }
+-}
+-
+ static gboolean
+ is_redraw_queued (MetaScreenCastMonitorStreamSrc *monitor_src)
+ {
+@@ -450,6 +409,9 @@ maybe_paint_cursor_sprite (MetaScreenCastMonitorStreamSrc *monitor_src,
+ {
+   MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
++  MetaMonitor *monitor;
++  MetaLogicalMonitor *logical_monitor;
++  MetaRectangle logical_monitor_layout;
+   MetaCursorRenderer *cursor_renderer =
+     meta_backend_get_cursor_renderer (backend);
+   MetaCursorSprite *cursor_sprite;
+@@ -462,7 +424,11 @@ maybe_paint_cursor_sprite (MetaScreenCastMonitorStreamSrc *monitor_src,
+   cairo_surface_t *surface;
+   cairo_t *cr;
+ 
+-  if (!is_cursor_in_stream (monitor_src))
++  monitor = get_monitor (monitor_src);
++  logical_monitor = meta_monitor_get_logical_monitor (monitor);
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
++
++  if (!meta_screen_cast_stream_src_common_is_cursor_in_stream (src, &logical_monitor_layout))
+     return;
+ 
+   cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+@@ -666,18 +632,18 @@ meta_screen_cast_monitor_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+   int x, y;
+ 
+   cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
++  monitor = get_monitor (monitor_src);
++  logical_monitor = meta_monitor_get_logical_monitor (monitor);
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+ 
+   if (!meta_cursor_tracker_get_pointer_visible (cursor_tracker) ||
+-      !is_cursor_in_stream (monitor_src))
++      !meta_screen_cast_stream_src_common_is_cursor_in_stream (src, &logical_monitor_layout))
+     {
+       meta_screen_cast_stream_src_unset_cursor_metadata (src,
+                                                          spa_meta_cursor);
+       return;
+     }
+ 
+-  monitor = get_monitor (monitor_src);
+-  logical_monitor = meta_monitor_get_logical_monitor (monitor);
+-  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+   logical_monitor_rect =
+     meta_rectangle_to_graphene_rect (&logical_monitor_layout);
+ 
+@@ -732,8 +698,16 @@ meta_screen_cast_monitor_stream_src_is_cursor_inhibited (MetaHwCursorInhibitor *
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (inhibitor);
++  MetaMonitor *monitor;
++  MetaLogicalMonitor *logical_monitor;
++  MetaRectangle logical_monitor_layout;
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
++
++  monitor = get_monitor (monitor_src);
++  logical_monitor = meta_monitor_get_logical_monitor (monitor);
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+ 
+-  return is_cursor_in_stream (monitor_src);
++  return meta_screen_cast_stream_src_common_is_cursor_in_stream (src, &logical_monitor_layout);
+ }
+ 
+ static void
+diff --git a/src/backends/meta-screen-cast-stream-src-common.c b/src/backends/meta-screen-cast-stream-src-common.c
+new file mode 100644
+index 00000000000..b7fe1e59439
+--- /dev/null
++++ b/src/backends/meta-screen-cast-stream-src-common.c
+@@ -0,0 +1,60 @@
++/* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
++
++/*
++ * Copyright (C) 2021
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ *
++ */
++
++#include "config.h"
++
++#include "backends/meta-screen-cast-stream-src-common.h"
++
++#include "backends/meta-cursor-tracker-private.h"
++#include "core/boxes-private.h"
++
++gboolean
++meta_screen_cast_stream_src_common_is_cursor_in_stream (MetaScreenCastStreamSrc *src,
++                                                        MetaRectangle           *stream_area)
++{
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
++  MetaCursorRenderer *cursor_renderer =
++    meta_backend_get_cursor_renderer (backend);
++  graphene_rect_t area_rect;
++  MetaCursorSprite *cursor_sprite;
++
++  area_rect = meta_rectangle_to_graphene_rect (stream_area);
++
++  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
++  if (cursor_sprite)
++    {
++      graphene_rect_t cursor_rect;
++
++      cursor_rect = meta_cursor_renderer_calculate_rect (cursor_renderer,
++                                                         cursor_sprite);
++      return graphene_rect_intersection (&cursor_rect, &area_rect, NULL);
++    }
++  else
++    {
++      MetaCursorTracker *cursor_tracker =
++        meta_backend_get_cursor_tracker (backend);
++      graphene_point_t cursor_position;
++
++      meta_cursor_tracker_get_pointer (cursor_tracker, &cursor_position, NULL);
++      return graphene_rect_contains_point (&area_rect, &cursor_position);
++    }
++}
+diff --git a/src/backends/meta-screen-cast-stream-src-common.h b/src/backends/meta-screen-cast-stream-src-common.h
+new file mode 100644
+index 00000000000..ecd3d06e7e9
+--- /dev/null
++++ b/src/backends/meta-screen-cast-stream-src-common.h
+@@ -0,0 +1,29 @@
++/*
++ * Copyright (C) 2021
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms  of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
++ * 02111-1307, USA.
++ *
++ */
++
++#ifndef META_SCREEN_CAST_STREAM_SRC_COMMON_H
++#define META_SCREEN_CAST_STREAM_SRC_COMMON_H
++
++#include "backends/meta-screen-cast-stream-src.h"
++
++gboolean meta_screen_cast_stream_src_common_is_cursor_in_stream (MetaScreenCastStreamSrc *src,
++                                                                 MetaRectangle           *stream_area);
++
++#endif /* META_SCREEN_CAST_STREAM_SRC_COMMON_H */
+diff --git a/src/backends/meta-screen-cast-window-stream-src.c b/src/backends/meta-screen-cast-window-stream-src.c
+index 92e781bebdf..57bbdb35431 100644
+--- a/src/backends/meta-screen-cast-window-stream-src.c
++++ b/src/backends/meta-screen-cast-window-stream-src.c
+@@ -25,6 +25,7 @@
+ #include "backends/meta-backend-private.h"
+ #include "backends/meta-cursor-tracker-private.h"
+ #include "backends/meta-screen-cast-session.h"
++#include "backends/meta-screen-cast-stream-src-common.h"
+ #include "backends/meta-screen-cast-window.h"
+ #include "backends/meta-screen-cast-window-stream.h"
+ #include "compositor/meta-window-actor-private.h"
+diff --git a/src/meson.build b/src/meson.build
+index 3683907ff3e..d4687fbbe7b 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -487,6 +487,8 @@ if have_remote_desktop
+     'backends/meta-screen-cast-stream.h',
+     'backends/meta-screen-cast-stream-src.c',
+     'backends/meta-screen-cast-stream-src.h',
++    'backends/meta-screen-cast-stream-src-common.c',
++    'backends/meta-screen-cast-stream-src-common.h',
+   ]
+ endif
+ 
+-- 
+GitLab
+
+
+From aceed7c80b656ad0f9de6911c6e82325102c38ea Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 12:24:17 +0100
+Subject: [PATCH 4/9] screencast: Factor out parts of set_cursor_metadata
+
+Similar to the last commit, this function is duplicated in all three
+stream sources, so factor out the common parts.
+---
+ .../meta-screen-cast-area-stream-src.c        | 43 ++--------------
+ .../meta-screen-cast-monitor-stream-src.c     | 43 ++--------------
+ .../meta-screen-cast-stream-src-common.c      | 49 +++++++++++++++++++
+ .../meta-screen-cast-stream-src-common.h      |  6 +++
+ .../meta-screen-cast-window-stream-src.c      | 33 ++-----------
+ 5 files changed, 70 insertions(+), 104 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index a5ea02fa6da..9bd8316f323 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -465,18 +465,13 @@ meta_screen_cast_area_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc *s
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaCursorRenderer *cursor_renderer =
+-    meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+     meta_backend_get_cursor_tracker (backend);
+-  MetaCursorSprite *cursor_sprite;
+   MetaRectangle *area;
+   float scale;
+   graphene_point_t cursor_position;
+-  int x, y;
+ 
+   area = meta_screen_cast_area_stream_get_area (area_stream);
+-  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+ 
+   if (!meta_cursor_tracker_get_pointer_visible (cursor_tracker) ||
+       !meta_screen_cast_stream_src_common_is_cursor_in_stream (src, area))
+@@ -494,39 +489,11 @@ meta_screen_cast_area_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc *s
+   cursor_position.x *= scale;
+   cursor_position.y *= scale;
+ 
+-  x = (int) roundf (cursor_position.x);
+-  y = (int) roundf (cursor_position.y);
+-
+-  if (area_src->cursor_bitmap_invalid)
+-    {
+-      if (cursor_sprite)
+-        {
+-          float cursor_scale;
+-          float metadata_scale;
+-
+-          cursor_scale = meta_cursor_sprite_get_texture_scale (cursor_sprite);
+-          metadata_scale = scale * cursor_scale;
+-          meta_screen_cast_stream_src_set_cursor_sprite_metadata (src,
+-                                                                  spa_meta_cursor,
+-                                                                  cursor_sprite,
+-                                                                  x, y,
+-                                                                  metadata_scale);
+-        }
+-      else
+-        {
+-          meta_screen_cast_stream_src_set_empty_cursor_sprite_metadata (src,
+-                                                                        spa_meta_cursor,
+-                                                                        x, y);
+-        }
+-
+-      area_src->cursor_bitmap_invalid = FALSE;
+-    }
+-  else
+-    {
+-      meta_screen_cast_stream_src_set_cursor_position_metadata (src,
+-                                                                spa_meta_cursor,
+-                                                                x, y);
+-    }
++  meta_screen_cast_stream_src_common_set_cursor_metadata (src,
++                                                          spa_meta_cursor,
++                                                          &cursor_position,
++                                                          scale,
++                                                          &area_src->cursor_bitmap_invalid);
+ }
+ 
+ static gboolean
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 3624c4beb36..762127dfcbe 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -618,20 +618,15 @@ meta_screen_cast_monitor_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaCursorRenderer *cursor_renderer =
+-    meta_backend_get_cursor_renderer (backend);
+   MetaCursorTracker *cursor_tracker =
+     meta_backend_get_cursor_tracker (backend);
+-  MetaCursorSprite *cursor_sprite;
+   MetaMonitor *monitor;
+   MetaLogicalMonitor *logical_monitor;
+   MetaRectangle logical_monitor_layout;
+   graphene_rect_t logical_monitor_rect;
+   float view_scale;
+   graphene_point_t cursor_position;
+-  int x, y;
+ 
+-  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+   monitor = get_monitor (monitor_src);
+   logical_monitor = meta_monitor_get_logical_monitor (monitor);
+   logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+@@ -658,39 +653,11 @@ meta_screen_cast_monitor_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+   cursor_position.x *= view_scale;
+   cursor_position.y *= view_scale;
+ 
+-  x = (int) roundf (cursor_position.x);
+-  y = (int) roundf (cursor_position.y);
+-
+-  if (monitor_src->cursor_bitmap_invalid)
+-    {
+-      if (cursor_sprite)
+-        {
+-          float cursor_scale;
+-          float scale;
+-
+-          cursor_scale = meta_cursor_sprite_get_texture_scale (cursor_sprite);
+-          scale = view_scale * cursor_scale;
+-          meta_screen_cast_stream_src_set_cursor_sprite_metadata (src,
+-                                                                  spa_meta_cursor,
+-                                                                  cursor_sprite,
+-                                                                  x, y,
+-                                                                  scale);
+-        }
+-      else
+-        {
+-          meta_screen_cast_stream_src_set_empty_cursor_sprite_metadata (src,
+-                                                                        spa_meta_cursor,
+-                                                                        x, y);
+-        }
+-
+-      monitor_src->cursor_bitmap_invalid = FALSE;
+-    }
+-  else
+-    {
+-      meta_screen_cast_stream_src_set_cursor_position_metadata (src,
+-                                                                spa_meta_cursor,
+-                                                                x, y);
+-    }
++  meta_screen_cast_stream_src_common_set_cursor_metadata (src,
++                                                          spa_meta_cursor,
++                                                          &cursor_position,
++                                                          view_scale,
++                                                          &monitor_src->cursor_bitmap_invalid);
+ }
+ 
+ static gboolean
+diff --git a/src/backends/meta-screen-cast-stream-src-common.c b/src/backends/meta-screen-cast-stream-src-common.c
+index b7fe1e59439..63f366b0c7a 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.c
++++ b/src/backends/meta-screen-cast-stream-src-common.c
+@@ -58,3 +58,52 @@ meta_screen_cast_stream_src_common_is_cursor_in_stream (MetaScreenCastStreamSrc
+       return graphene_rect_contains_point (&area_rect, &cursor_position);
+     }
+ }
++
++void
++meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStreamSrc *src,
++                                                        struct spa_meta_cursor  *spa_meta_cursor,
++                                                        graphene_point_t        *cursor_position,
++                                                        float                    scale,
++                                                        gboolean                *cursor_bitmap_invalid)
++{
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
++  MetaCursorRenderer *cursor_renderer =
++    meta_backend_get_cursor_renderer (backend);
++  int x, y;
++
++  x = (int) roundf (cursor_position->x);
++  y = (int) roundf (cursor_position->y);
++
++  if (*cursor_bitmap_invalid)
++    {
++      MetaCursorSprite *cursor_sprite =
++        meta_cursor_renderer_get_cursor (cursor_renderer);
++
++      if (cursor_sprite)
++        {
++          float cursor_scale;
++
++          cursor_scale = meta_cursor_sprite_get_texture_scale (cursor_sprite);
++          scale *= cursor_scale;
++          meta_screen_cast_stream_src_set_cursor_sprite_metadata (src,
++                                                                  spa_meta_cursor,
++                                                                  cursor_sprite,
++                                                                  x, y,
++                                                                  scale);
++        }
++      else
++        {
++          meta_screen_cast_stream_src_set_empty_cursor_sprite_metadata (src,
++                                                                        spa_meta_cursor,
++                                                                        x, y);
++        }
++
++      *cursor_bitmap_invalid = FALSE;
++    }
++  else
++    {
++      meta_screen_cast_stream_src_set_cursor_position_metadata (src,
++                                                                spa_meta_cursor,
++                                                                x, y);
++    }
++}
+diff --git a/src/backends/meta-screen-cast-stream-src-common.h b/src/backends/meta-screen-cast-stream-src-common.h
+index ecd3d06e7e9..ebd2818ed64 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.h
++++ b/src/backends/meta-screen-cast-stream-src-common.h
+@@ -26,4 +26,10 @@
+ gboolean meta_screen_cast_stream_src_common_is_cursor_in_stream (MetaScreenCastStreamSrc *src,
+                                                                  MetaRectangle           *stream_area);
+ 
++void meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStreamSrc *src,
++                                                             struct spa_meta_cursor  *spa_meta_cursor,
++                                                             graphene_point_t        *cursor_position,
++                                                             float                    scale,
++                                                             gboolean                *cursor_bitmap_invalid);
++
+ #endif /* META_SCREEN_CAST_STREAM_SRC_COMMON_H */
+diff --git a/src/backends/meta-screen-cast-window-stream-src.c b/src/backends/meta-screen-cast-window-stream-src.c
+index 57bbdb35431..f16258a95b1 100644
+--- a/src/backends/meta-screen-cast-window-stream-src.c
++++ b/src/backends/meta-screen-cast-window-stream-src.c
+@@ -521,7 +521,6 @@ meta_screen_cast_window_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+   graphene_point_t cursor_position;
+   float scale;
+   graphene_point_t relative_cursor_position;
+-  int x, y;
+ 
+   cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+   meta_cursor_tracker_get_pointer (cursor_tracker, &cursor_position, NULL);
+@@ -538,33 +537,11 @@ meta_screen_cast_window_stream_src_set_cursor_metadata (MetaScreenCastStreamSrc
+       return;
+     }
+ 
+-  x = (int) roundf (relative_cursor_position.x);
+-  y = (int) roundf (relative_cursor_position.y);
+-
+-  if (window_src->cursor_bitmap_invalid)
+-    {
+-      if (cursor_sprite)
+-        {
+-          meta_screen_cast_stream_src_set_cursor_sprite_metadata (src,
+-                                                                  spa_meta_cursor,
+-                                                                  cursor_sprite,
+-                                                                  x, y,
+-                                                                  scale);
+-        }
+-      else
+-        {
+-          meta_screen_cast_stream_src_set_empty_cursor_sprite_metadata (src,
+-                                                                        spa_meta_cursor,
+-                                                                        x, y);
+-        }
+-      window_src->cursor_bitmap_invalid = FALSE;
+-    }
+-  else
+-    {
+-      meta_screen_cast_stream_src_set_cursor_position_metadata (src,
+-                                                                spa_meta_cursor,
+-                                                                x, y);
+-    }
++  meta_screen_cast_stream_src_common_set_cursor_metadata (src,
++                                                          spa_meta_cursor,
++                                                          &relative_cursor_position,
++                                                          scale,
++                                                          &window_src->cursor_bitmap_invalid);
+ }
+ 
+ MetaScreenCastWindowStreamSrc *
+-- 
+GitLab
+
+
+From 4237d93b69d96c30368d613a00518d7f436b95fa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 12:36:32 +0100
+Subject: [PATCH 5/9] screencast: Factor out painting of the cursor sprite to
+ buffer
+
+We're going to need this method not only in the MonitorStreamSrc but
+also in the AreaStreamSrc, so factor it out into our new file for common
+stream source functions.
+---
+ .../meta-screen-cast-monitor-stream-src.c     | 82 ++-----------------
+ .../meta-screen-cast-stream-src-common.c      | 65 +++++++++++++++
+ .../meta-screen-cast-stream-src-common.h      |  7 ++
+ 3 files changed, 81 insertions(+), 73 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 762127dfcbe..098d2a04a1e 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -400,78 +400,6 @@ meta_screen_cast_monitor_stream_src_disable (MetaScreenCastStreamSrc *src)
+     }
+ }
+ 
+-static void
+-maybe_paint_cursor_sprite (MetaScreenCastMonitorStreamSrc *monitor_src,
+-                           int                             width,
+-                           int                             height,
+-                           int                             stride,
+-                           uint8_t                        *data)
+-{
+-  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (monitor_src);
+-  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaMonitor *monitor;
+-  MetaLogicalMonitor *logical_monitor;
+-  MetaRectangle logical_monitor_layout;
+-  MetaCursorRenderer *cursor_renderer =
+-    meta_backend_get_cursor_renderer (backend);
+-  MetaCursorSprite *cursor_sprite;
+-  CoglTexture *sprite_texture;
+-  int sprite_width, sprite_height, sprite_stride;
+-  float sprite_scale;
+-  uint8_t *sprite_data;
+-  cairo_surface_t *sprite_surface;
+-  graphene_rect_t sprite_rect;
+-  cairo_surface_t *surface;
+-  cairo_t *cr;
+-
+-  monitor = get_monitor (monitor_src);
+-  logical_monitor = meta_monitor_get_logical_monitor (monitor);
+-  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+-
+-  if (!meta_screen_cast_stream_src_common_is_cursor_in_stream (src, &logical_monitor_layout))
+-    return;
+-
+-  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
+-  if (!cursor_sprite)
+-    return;
+-
+-  if (meta_cursor_renderer_is_overlay_visible (cursor_renderer))
+-    return;
+-
+-  sprite_rect = meta_cursor_renderer_calculate_rect (cursor_renderer,
+-                                                     cursor_sprite);
+-  sprite_texture = meta_cursor_sprite_get_cogl_texture (cursor_sprite);
+-  sprite_width = cogl_texture_get_width (sprite_texture);
+-  sprite_height = cogl_texture_get_height (sprite_texture);
+-  sprite_stride = sprite_width * 4;
+-  sprite_scale = meta_cursor_sprite_get_texture_scale (cursor_sprite);
+-  sprite_data = g_new0 (uint8_t, sprite_stride * sprite_height);
+-  cogl_texture_get_data (sprite_texture,
+-                         CLUTTER_CAIRO_FORMAT_ARGB32,
+-                         sprite_stride,
+-                         sprite_data);
+-  sprite_surface = cairo_image_surface_create_for_data (sprite_data,
+-                                                        CAIRO_FORMAT_ARGB32,
+-                                                        sprite_width,
+-                                                        sprite_height,
+-                                                        sprite_stride);
+-  cairo_surface_set_device_scale (sprite_surface, sprite_scale, sprite_scale);
+-
+-  surface = cairo_image_surface_create_for_data (data,
+-                                                 CAIRO_FORMAT_ARGB32,
+-                                                 width, height, stride);
+-
+-  cr = cairo_create (surface);
+-  cairo_set_source_surface (cr, sprite_surface,
+-                            sprite_rect.origin.x,
+-                            sprite_rect.origin.y);
+-  cairo_paint (cr);
+-  cairo_destroy (cr);
+-  cairo_surface_destroy (sprite_surface);
+-  cairo_surface_destroy (surface);
+-  g_free (sprite_data);
+-}
+-
+ static gboolean
+ meta_screen_cast_monitor_stream_src_record_to_buffer (MetaScreenCastStreamSrc  *src,
+                                                       int                       width,
+@@ -486,16 +414,24 @@ meta_screen_cast_monitor_stream_src_record_to_buffer (MetaScreenCastStreamSrc  *
+   ClutterStage *stage;
+   MetaMonitor *monitor;
+   MetaLogicalMonitor *logical_monitor;
++  MetaRectangle logical_monitor_layout;
+ 
+   monitor = get_monitor (monitor_src);
+   logical_monitor = meta_monitor_get_logical_monitor (monitor);
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
++
+   stage = get_stage (monitor_src);
+   clutter_stage_capture_into (stage, &logical_monitor->rect, data);
+ 
+   switch (meta_screen_cast_stream_get_cursor_mode (stream))
+     {
+     case META_SCREEN_CAST_CURSOR_MODE_EMBEDDED:
+-      maybe_paint_cursor_sprite (monitor_src, width, height, stride, data);
++      meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (src,
++                                                                    &logical_monitor_layout,
++                                                                    width,
++                                                                    height,
++                                                                    stride,
++                                                                    data);
+       break;
+     case META_SCREEN_CAST_CURSOR_MODE_METADATA:
+     case META_SCREEN_CAST_CURSOR_MODE_HIDDEN:
+diff --git a/src/backends/meta-screen-cast-stream-src-common.c b/src/backends/meta-screen-cast-stream-src-common.c
+index 63f366b0c7a..a91eeefb7ad 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.c
++++ b/src/backends/meta-screen-cast-stream-src-common.c
+@@ -107,3 +107,68 @@ meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStreamSrc
+                                                                 x, y);
+     }
+ }
++
++void
++meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (MetaScreenCastStreamSrc *src,
++                                                              MetaRectangle           *stream_area,
++                                                              int                      width,
++                                                              int                      height,
++                                                              int                      stride,
++                                                              uint8_t                 *data)
++{
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
++  MetaCursorRenderer *cursor_renderer =
++    meta_backend_get_cursor_renderer (backend);
++  MetaCursorSprite *cursor_sprite;
++  CoglTexture *sprite_texture;
++  int sprite_width, sprite_height, sprite_stride;
++  float sprite_scale;
++  uint8_t *sprite_data;
++  cairo_surface_t *sprite_surface;
++  graphene_rect_t sprite_rect;
++  cairo_surface_t *surface;
++  cairo_t *cr;
++
++  if (!meta_screen_cast_stream_src_common_is_cursor_in_stream (src, stream_area))
++    return;
++
++  cursor_sprite = meta_cursor_renderer_get_cursor (cursor_renderer);
++  if (!cursor_sprite)
++    return;
++
++  if (meta_cursor_renderer_is_overlay_visible (cursor_renderer))
++    return;
++
++  sprite_rect = meta_cursor_renderer_calculate_rect (cursor_renderer,
++                                                     cursor_sprite);
++  sprite_texture = meta_cursor_sprite_get_cogl_texture (cursor_sprite);
++  sprite_width = cogl_texture_get_width (sprite_texture);
++  sprite_height = cogl_texture_get_height (sprite_texture);
++  sprite_stride = sprite_width * 4;
++  sprite_scale = meta_cursor_sprite_get_texture_scale (cursor_sprite);
++  sprite_data = g_new0 (uint8_t, sprite_stride * sprite_height);
++  cogl_texture_get_data (sprite_texture,
++                         CLUTTER_CAIRO_FORMAT_ARGB32,
++                         sprite_stride,
++                         sprite_data);
++  sprite_surface = cairo_image_surface_create_for_data (sprite_data,
++                                                        CAIRO_FORMAT_ARGB32,
++                                                        sprite_width,
++                                                        sprite_height,
++                                                        sprite_stride);
++  cairo_surface_set_device_scale (sprite_surface, sprite_scale, sprite_scale);
++
++  surface = cairo_image_surface_create_for_data (data,
++                                                 CAIRO_FORMAT_ARGB32,
++                                                 width, height, stride);
++
++  cr = cairo_create (surface);
++  cairo_set_source_surface (cr, sprite_surface,
++                            sprite_rect.origin.x,
++                            sprite_rect.origin.y);
++  cairo_paint (cr);
++  cairo_destroy (cr);
++  cairo_surface_destroy (sprite_surface);
++  cairo_surface_destroy (surface);
++  g_free (sprite_data);
++}
+diff --git a/src/backends/meta-screen-cast-stream-src-common.h b/src/backends/meta-screen-cast-stream-src-common.h
+index ebd2818ed64..700a2dcb9ef 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.h
++++ b/src/backends/meta-screen-cast-stream-src-common.h
+@@ -32,4 +32,11 @@ void meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStrea
+                                                              float                    scale,
+                                                              gboolean                *cursor_bitmap_invalid);
+ 
++void meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (MetaScreenCastStreamSrc *src,
++                                                                   MetaRectangle           *stream_area,
++                                                                   int                      width,
++                                                                   int                      height,
++                                                                   int                      stride,
++                                                                   uint8_t                 *data);
++
+ #endif /* META_SCREEN_CAST_STREAM_SRC_COMMON_H */
+-- 
+GitLab
+
+
+From ced2145ad9290942435d196ade1c1620f40a8c32 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 12:45:58 +0100
+Subject: [PATCH 6/9] screencast: Factor out method to record logical monitor
+ into buffer
+
+We're going to use this method from two stream sources, MonitorStreamSrc
+and AreaStreamSrc, so it makes sense to factor it out.
+
+This allows us to make meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite()
+private again and rename it to maybe_paint_cursor_sprite_to_buffer(),
+which is a bit more specific.
+---
+ .../meta-screen-cast-monitor-stream-src.c     | 28 +++-------
+ .../meta-screen-cast-stream-src-common.c      | 51 ++++++++++++++++---
+ .../meta-screen-cast-stream-src-common.h      | 14 ++---
+ 3 files changed, 60 insertions(+), 33 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 098d2a04a1e..054184e31be 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -410,35 +410,23 @@ meta_screen_cast_monitor_stream_src_record_to_buffer (MetaScreenCastStreamSrc  *
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   ClutterStage *stage;
+   MetaMonitor *monitor;
+   MetaLogicalMonitor *logical_monitor;
+-  MetaRectangle logical_monitor_layout;
+ 
+   monitor = get_monitor (monitor_src);
+   logical_monitor = meta_monitor_get_logical_monitor (monitor);
+-  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+ 
+   stage = get_stage (monitor_src);
+-  clutter_stage_capture_into (stage, &logical_monitor->rect, data);
+ 
+-  switch (meta_screen_cast_stream_get_cursor_mode (stream))
+-    {
+-    case META_SCREEN_CAST_CURSOR_MODE_EMBEDDED:
+-      meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (src,
+-                                                                    &logical_monitor_layout,
+-                                                                    width,
+-                                                                    height,
+-                                                                    stride,
+-                                                                    data);
+-      break;
+-    case META_SCREEN_CAST_CURSOR_MODE_METADATA:
+-    case META_SCREEN_CAST_CURSOR_MODE_HIDDEN:
+-      break;
+-    }
+-
+-  return TRUE;
++  return meta_screen_cast_stream_src_common_record_monitor_to_buffer (src,
++                                                                      logical_monitor,
++                                                                      stage,
++                                                                      width,
++                                                                      height,
++                                                                      stride,
++                                                                      data,
++                                                                      error);
+ }
+ 
+ static gboolean
+diff --git a/src/backends/meta-screen-cast-stream-src-common.c b/src/backends/meta-screen-cast-stream-src-common.c
+index a91eeefb7ad..7aa69756243 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.c
++++ b/src/backends/meta-screen-cast-stream-src-common.c
+@@ -25,6 +25,8 @@
+ #include "backends/meta-screen-cast-stream-src-common.h"
+ 
+ #include "backends/meta-cursor-tracker-private.h"
++#include "backends/meta-logical-monitor.h"
++#include "backends/meta-screen-cast-session.h"
+ #include "core/boxes-private.h"
+ 
+ gboolean
+@@ -108,13 +110,13 @@ meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStreamSrc
+     }
+ }
+ 
+-void
+-meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (MetaScreenCastStreamSrc *src,
+-                                                              MetaRectangle           *stream_area,
+-                                                              int                      width,
+-                                                              int                      height,
+-                                                              int                      stride,
+-                                                              uint8_t                 *data)
++static void
++maybe_paint_cursor_sprite_to_buffer (MetaScreenCastStreamSrc *src,
++                                     MetaRectangle           *stream_area,
++                                     int                      width,
++                                     int                      height,
++                                     int                      stride,
++                                     uint8_t                 *data)
+ {
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+   MetaCursorRenderer *cursor_renderer =
+@@ -172,3 +174,38 @@ meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (MetaScreenCastStre
+   cairo_surface_destroy (surface);
+   g_free (sprite_data);
+ }
++
++gboolean
++meta_screen_cast_stream_src_common_record_monitor_to_buffer (MetaScreenCastStreamSrc  *src,
++                                                             MetaLogicalMonitor       *logical_monitor,
++                                                             ClutterStage             *stage,
++                                                             int                       width,
++                                                             int                       height,
++                                                             int                       stride,
++                                                             uint8_t                  *data,
++                                                             GError                  **error)
++{
++  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
++  MetaRectangle logical_monitor_layout;
++
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
++
++  clutter_stage_capture_into (stage, &logical_monitor_layout, data);
++
++  switch (meta_screen_cast_stream_get_cursor_mode (stream))
++    {
++    case META_SCREEN_CAST_CURSOR_MODE_EMBEDDED:
++      maybe_paint_cursor_sprite_to_buffer (src,
++                                           &logical_monitor_layout,
++                                           width,
++                                           height,
++                                           stride,
++                                           data);
++      break;
++    case META_SCREEN_CAST_CURSOR_MODE_METADATA:
++    case META_SCREEN_CAST_CURSOR_MODE_HIDDEN:
++      break;
++    }
++
++  return TRUE;
++}
+diff --git a/src/backends/meta-screen-cast-stream-src-common.h b/src/backends/meta-screen-cast-stream-src-common.h
+index 700a2dcb9ef..560687d2ca4 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.h
++++ b/src/backends/meta-screen-cast-stream-src-common.h
+@@ -32,11 +32,13 @@ void meta_screen_cast_stream_src_common_set_cursor_metadata (MetaScreenCastStrea
+                                                              float                    scale,
+                                                              gboolean                *cursor_bitmap_invalid);
+ 
+-void meta_screen_cast_stream_src_common_maybe_paint_cursor_sprite (MetaScreenCastStreamSrc *src,
+-                                                                   MetaRectangle           *stream_area,
+-                                                                   int                      width,
+-                                                                   int                      height,
+-                                                                   int                      stride,
+-                                                                   uint8_t                 *data);
++gboolean meta_screen_cast_stream_src_common_record_monitor_to_buffer (MetaScreenCastStreamSrc  *src,
++                                                                      MetaLogicalMonitor       *logical_monitor,
++                                                                      ClutterStage             *stage,
++                                                                      int                       width,
++                                                                      int                       height,
++                                                                      int                       stride,
++                                                                      uint8_t                  *data,
++                                                                      GError                  **error);
+ 
+ #endif /* META_SCREEN_CAST_STREAM_SRC_COMMON_H */
+-- 
+GitLab
+
+
+From 8d17a2db7c5a183e9cff519bd46ec5e492432c65 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 12:51:49 +0100
+Subject: [PATCH 7/9] screencast: Factor out method to record logical monitor
+ into framebuffer
+
+We're going to use this	method from two	stream sources,	MonitorStreamSrc
+and AreaStreamSrc, so it makes sense to	factor it out.
+---
+ .../meta-screen-cast-monitor-stream-src.c     | 57 ++---------------
+ .../meta-screen-cast-stream-src-common.c      | 63 +++++++++++++++++++
+ .../meta-screen-cast-stream-src-common.h      |  5 ++
+ 3 files changed, 72 insertions(+), 53 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-monitor-stream-src.c b/src/backends/meta-screen-cast-monitor-stream-src.c
+index 054184e31be..125e6b731b4 100644
+--- a/src/backends/meta-screen-cast-monitor-stream-src.c
++++ b/src/backends/meta-screen-cast-monitor-stream-src.c
+@@ -436,65 +436,16 @@ meta_screen_cast_monitor_stream_src_record_to_framebuffer (MetaScreenCastStreamS
+ {
+   MetaScreenCastMonitorStreamSrc *monitor_src =
+     META_SCREEN_CAST_MONITOR_STREAM_SRC (src);
+-  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+-  MetaRenderer *renderer = meta_backend_get_renderer (backend);
+   MetaMonitor *monitor;
+   MetaLogicalMonitor *logical_monitor;
+-  MetaRectangle logical_monitor_layout;
+-  GList *l;
+-  float view_scale;
+ 
+   monitor = get_monitor (monitor_src);
+   logical_monitor = meta_monitor_get_logical_monitor (monitor);
+-  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
+-
+-  if (meta_is_stage_views_scaled ())
+-    view_scale = meta_logical_monitor_get_scale (logical_monitor);
+-  else
+-    view_scale = 1.0;
+-
+-  for (l = meta_renderer_get_views (renderer); l; l = l->next)
+-    {
+-      ClutterStageView *view = CLUTTER_STAGE_VIEW (l->data);
+-      CoglFramebuffer *view_framebuffer;
+-      CoglScanout *scanout;
+-      MetaRectangle view_layout;
+-      int x, y;
+-
+-      clutter_stage_view_get_layout (view, &view_layout);
+-
+-      if (!meta_rectangle_overlap (&logical_monitor_layout, &view_layout))
+-        continue;
+-
+-      x = (int) roundf ((view_layout.x - logical_monitor_layout.x) * view_scale);
+-      y = (int) roundf ((view_layout.y - logical_monitor_layout.y) * view_scale);
+-
+-      scanout = clutter_stage_view_peek_scanout (view);
+-      if (scanout)
+-        {
+-          if (!cogl_scanout_blit_to_framebuffer (scanout,
+-                                                 framebuffer,
+-                                                 x, y,
+-                                                 error))
+-            return FALSE;
+-        }
+-      else
+-        {
+-          view_framebuffer = clutter_stage_view_get_framebuffer (view);
+-          if (!cogl_blit_framebuffer (view_framebuffer,
+-                                      framebuffer,
+-                                      0, 0,
+-                                      x, y,
+-                                      cogl_framebuffer_get_width (view_framebuffer),
+-                                      cogl_framebuffer_get_height (view_framebuffer),
+-                                      error))
+-            return FALSE;
+-        }
+-    }
+-
+-  cogl_framebuffer_flush (framebuffer);
+ 
+-  return TRUE;
++  return meta_screen_cast_stream_src_common_record_monitor_to_framebuffer (src,
++                                                                           logical_monitor,
++                                                                           framebuffer,
++                                                                           error);
+ }
+ 
+ static void
+diff --git a/src/backends/meta-screen-cast-stream-src-common.c b/src/backends/meta-screen-cast-stream-src-common.c
+index 7aa69756243..7922a66f137 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.c
++++ b/src/backends/meta-screen-cast-stream-src-common.c
+@@ -209,3 +209,66 @@ meta_screen_cast_stream_src_common_record_monitor_to_buffer (MetaScreenCastStrea
+ 
+   return TRUE;
+ }
++
++gboolean
++meta_screen_cast_stream_src_common_record_monitor_to_framebuffer (MetaScreenCastStreamSrc  *src,
++                                                                  MetaLogicalMonitor       *logical_monitor,
++                                                                  CoglFramebuffer          *framebuffer,
++                                                                  GError                  **error)
++{
++  MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
++  MetaRenderer *renderer = meta_backend_get_renderer (backend);
++  MetaRectangle logical_monitor_layout;
++  GList *l;
++  float view_scale;
++
++  logical_monitor_layout = meta_logical_monitor_get_layout (logical_monitor);
++
++  if (meta_is_stage_views_scaled ())
++    view_scale = meta_logical_monitor_get_scale (logical_monitor);
++  else
++    view_scale = 1.0;
++
++  for (l = meta_renderer_get_views (renderer); l; l = l->next)
++    {
++      ClutterStageView *view = CLUTTER_STAGE_VIEW (l->data);
++      CoglFramebuffer *view_framebuffer;
++      CoglScanout *scanout;
++      MetaRectangle view_layout;
++      int x, y;
++
++      clutter_stage_view_get_layout (view, &view_layout);
++
++      if (!meta_rectangle_overlap (&logical_monitor_layout, &view_layout))
++        continue;
++
++      x = (int) roundf ((view_layout.x - logical_monitor_layout.x) * view_scale);
++      y = (int) roundf ((view_layout.y - logical_monitor_layout.y) * view_scale);
++
++      scanout = clutter_stage_view_peek_scanout (view);
++      if (scanout)
++        {
++          if (!cogl_scanout_blit_to_framebuffer (scanout,
++                                                 framebuffer,
++                                                 x, y,
++                                                 error))
++            return FALSE;
++        }
++      else
++        {
++          view_framebuffer = clutter_stage_view_get_framebuffer (view);
++          if (!cogl_blit_framebuffer (view_framebuffer,
++                                      framebuffer,
++                                      0, 0,
++                                      x, y,
++                                      cogl_framebuffer_get_width (view_framebuffer),
++                                      cogl_framebuffer_get_height (view_framebuffer),
++                                      error))
++            return FALSE;
++        }
++    }
++
++  cogl_framebuffer_flush (framebuffer);
++
++  return TRUE;
++}
+diff --git a/src/backends/meta-screen-cast-stream-src-common.h b/src/backends/meta-screen-cast-stream-src-common.h
+index 560687d2ca4..8b50e524d1d 100644
+--- a/src/backends/meta-screen-cast-stream-src-common.h
++++ b/src/backends/meta-screen-cast-stream-src-common.h
+@@ -41,4 +41,9 @@ gboolean meta_screen_cast_stream_src_common_record_monitor_to_buffer (MetaScreen
+                                                                       uint8_t                  *data,
+                                                                       GError                  **error);
+ 
++gboolean meta_screen_cast_stream_src_common_record_monitor_to_framebuffer (MetaScreenCastStreamSrc  *src,
++                                                                           MetaLogicalMonitor       *logical_monitor,
++                                                                           CoglFramebuffer          *framebuffer,
++                                                                           GError                  **error);
++
+ #endif /* META_SCREEN_CAST_STREAM_SRC_COMMON_H */
+-- 
+GitLab
+
+
+From b71a86d3523b904dd10330506ead739e41c4fad3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 12:53:32 +0100
+Subject: [PATCH 8/9] screen-cast/area-src: Always call on_monitors_changed()
+ when enabling
+
+What on_monitors_changed() does is re-adding the stage watches for all
+the views we're interested in, that's the exact same we do for all
+CURSOR_MODES in meta_screen_cast_area_stream_src_enable().
+
+We can clean up things a little bit by just calling
+on_monitors_changed() unconditionally when enabling the area source, so
+do that.
+---
+ src/backends/meta-screen-cast-area-stream-src.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index 9bd8316f323..9695514e9ff 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -300,19 +300,17 @@ meta_screen_cast_area_stream_src_enable (MetaScreenCastStreamSrc *src)
+                                 G_CALLBACK (cursor_changed),
+                                 area_src);
+       meta_cursor_tracker_track_position (cursor_tracker);
+-      G_GNUC_FALLTHROUGH;
+-    case META_SCREEN_CAST_CURSOR_MODE_HIDDEN:
+-      add_view_painted_watches (area_src,
+-                                META_STAGE_WATCH_AFTER_ACTOR_PAINT);
+       break;
+     case META_SCREEN_CAST_CURSOR_MODE_EMBEDDED:
+       inhibit_hw_cursor (area_src);
+       meta_cursor_tracker_track_position (cursor_tracker);
+-      add_view_painted_watches (area_src,
+-                                META_STAGE_WATCH_AFTER_ACTOR_PAINT);
++      break;
++    case META_SCREEN_CAST_CURSOR_MODE_HIDDEN:
+       break;
+     }
+ 
++  on_monitors_changed (monitor_manager, area_src);
++
+   g_signal_connect_object (monitor_manager, "monitors-changed-internal",
+                            G_CALLBACK (on_monitors_changed),
+                            area_src, 0);
+-- 
+GitLab
+
+
+From baaabc4ffd7ec9da5434eb5eeea6f68ba872c41e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jonas=20Dre=C3=9Fler?= <verdre@v0yd.nl>
+Date: Fri, 5 Feb 2021 13:37:52 +0100
+Subject: [PATCH 9/9] screen-cast/area-stream: Use monitor framebuffer in case
+ area is monitor
+
+The largest part of computer users uses only a single monitor, in this
+case we can avoid painting the stage a second time in the area stream
+and simply use the monitors framebuffer as the source of our recording.
+
+So introduce an optimization for the area stream that compares our
+rectangle to the logical monitor rects that exist, and make use of the
+functions to record monitor buffers/framebuffers that we factored out of
+the monitor stream source in the last commits.
+---
+ .../meta-screen-cast-area-stream-src.c        | 56 +++++++++++++++++++
+ 1 file changed, 56 insertions(+)
+
+diff --git a/src/backends/meta-screen-cast-area-stream-src.c b/src/backends/meta-screen-cast-area-stream-src.c
+index 9695514e9ff..0e72e10aa09 100644
+--- a/src/backends/meta-screen-cast-area-stream-src.c
++++ b/src/backends/meta-screen-cast-area-stream-src.c
+@@ -26,6 +26,7 @@
+ 
+ #include "backends/meta-backend-private.h"
+ #include "backends/meta-cursor-tracker-private.h"
++#include "backends/meta-logical-monitor.h"
+ #include "backends/meta-screen-cast-area-stream.h"
+ #include "backends/meta-screen-cast-session.h"
+ #include "backends/meta-screen-cast-stream-src-common.h"
+@@ -38,6 +39,8 @@ struct _MetaScreenCastAreaStreamSrc
+ {
+   MetaScreenCastStreamSrc parent;
+ 
++  MetaLogicalMonitor *logical_monitor_to_use;
++
+   gboolean cursor_bitmap_invalid;
+   gboolean hw_cursor_inhibited;
+ 
+@@ -264,11 +267,41 @@ on_monitors_changed (MetaMonitorManager          *monitor_manager,
+ {
+   MetaStage *stage = META_STAGE (get_stage (area_src));
+   GList *l;
++  MetaScreenCastStreamSrc *src = META_SCREEN_CAST_STREAM_SRC (area_src);
++  MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
++  MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
++  MetaRectangle *area;
++  GList *logical_monitors;
+ 
+   for (l = area_src->watches; l; l = l->next)
+     meta_stage_remove_watch (stage, l->data);
+   g_clear_pointer (&area_src->watches, g_list_free);
+ 
++  area = meta_screen_cast_area_stream_get_area (area_stream);
++  logical_monitors = meta_monitor_manager_get_logical_monitors (monitor_manager);
++
++  area_src->logical_monitor_to_use = NULL;
++
++  for (l = logical_monitors; l; l = l->next)
++    {
++      MetaLogicalMonitor *logical_monitor = l->data;
++
++      /* FIXME: Once we have proper frame rate negotiation with pipewire,
++       * compare that to the monitor frame rate and don't apply the optimization
++       * in case the requested frame rate is larger than the monitor rate.
++       */
++      if (meta_rectangle_equal (area, &logical_monitor->rect))
++        {
++          meta_topic (META_DEBUG_SCREEN_CAST,
++                      "Found a logical monitor that's equal to the screen cast "
++                      "area, recording monitor framebuffer instead of painting "
++                      "the stage.");
++
++          area_src->logical_monitor_to_use = logical_monitor;
++          break;
++        }
++    }
++
+   add_view_painted_watches (area_src,
+                             META_STAGE_WATCH_AFTER_ACTOR_PAINT);
+ }
+@@ -380,6 +413,19 @@ meta_screen_cast_area_stream_src_record_to_buffer (MetaScreenCastStreamSrc  *src
+   ClutterPaintFlag paint_flags = CLUTTER_PAINT_FLAG_CLEAR;
+ 
+   stage = get_stage (area_src);
++
++  if (area_src->logical_monitor_to_use)
++    {
++      return meta_screen_cast_stream_src_common_record_monitor_to_buffer (src,
++                                                                          area_src->logical_monitor_to_use,
++                                                                          stage,
++                                                                          width,
++                                                                          height,
++                                                                          stride,
++                                                                          data,
++                                                                          error);
++    }
++
+   area = meta_screen_cast_area_stream_get_area (area_stream);
+   scale = meta_screen_cast_area_stream_get_scale (area_stream);
+ 
+@@ -410,6 +456,8 @@ meta_screen_cast_area_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc
+                                                         CoglFramebuffer          *framebuffer,
+                                                         GError                  **error)
+ {
++  MetaScreenCastAreaStreamSrc *area_src =
++    META_SCREEN_CAST_AREA_STREAM_SRC (src);
+   MetaScreenCastStream *stream = meta_screen_cast_stream_src_get_stream (src);
+   MetaScreenCastAreaStream *area_stream = META_SCREEN_CAST_AREA_STREAM (stream);
+   MetaBackend *backend = meta_screen_cast_stream_src_get_backend (src);
+@@ -418,6 +466,14 @@ meta_screen_cast_area_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc
+   float scale;
+   ClutterPaintFlag paint_flags = CLUTTER_PAINT_FLAG_CLEAR;
+ 
++  if (area_src->logical_monitor_to_use)
++    {
++      return meta_screen_cast_stream_src_common_record_monitor_to_framebuffer (src,
++                                                                               area_src->logical_monitor_to_use,
++                                                                               framebuffer,
++                                                                               error);
++    }
++
+   stage = CLUTTER_STAGE (meta_backend_get_stage (backend));
+   area = meta_screen_cast_area_stream_get_area (area_stream);
+   scale = meta_screen_cast_area_stream_get_scale (area_stream);
+-- 
+GitLab
+

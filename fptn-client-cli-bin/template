@@ -1,0 +1,22 @@
+# Template file for 'fptn-client-cli-bin'
+pkgname=fptn-client-cli-bin
+version=0.4.4
+revision=1
+archs="x86_64"
+short_desc="Non-commercial VPN, a volunteer project for bypassing censorship (CLI client)"
+maintainer="Terromur <terromuroz@proton.me>"
+license="MIT"
+homepage="https://github.com/batchar2/fptn"
+distfiles="https://github.com/batchar2/fptn/releases/download/${version}/fptn-client-cli-${version}-ubuntu22.04-amd64.deb"
+checksum="d136f46493dcee767bcd09beee5ca1ea3fbd37eb5b1cfad310c5a0399c5c1f8f"
+noshlibprovides=yes
+nostrip=yes
+do_install() {
+    cp -a "$wrksrc"/* "$DESTDIR" 2>/dev/null || true
+    for dir in bin lib; do
+        if [ -d "$DESTDIR/$dir" ]; then
+            mkdir -p "$DESTDIR/usr"
+            mv -f "$DESTDIR/$dir" "$DESTDIR/usr/"
+        fi
+    done
+}
