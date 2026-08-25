@@ -1,0 +1,76 @@
+--- a/src/amd/vulkan/radv_queue.c
++++ b/src/amd/vulkan/radv_queue.c
+@@ -1077,9 +1077,11 @@
+       if (i < 2 || task_rings_bo) {
+          /* The two initial preambles have a cache flush at the beginning. */
+          const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
+-         enum radv_cmd_flush_bits flush_bits = RADV_CMD_FLAG_INV_ICACHE | RADV_CMD_FLAG_INV_SCACHE |
+-                                               RADV_CMD_FLAG_INV_VCACHE | RADV_CMD_FLAG_INV_L2 |
+-                                               RADV_CMD_FLAG_START_PIPELINE_STATS;
++         enum radv_cmd_flush_bits flush_bits = RADV_CMD_FLAG_INV_L2 | RADV_CMD_FLAG_START_PIPELINE_STATS;
++
++         if (gfx_level >= GFX7) {
++            flush_bits |= RADV_CMD_FLAG_INV_ICACHE | RADV_CMD_FLAG_INV_SCACHE | RADV_CMD_FLAG_INV_VCACHE;
++         }
+ 
+          if (i == 0 || task_rings_bo) {
+             /* The full flush preamble should also wait for previous shader work to finish. */
+@@ -1328,32 +1330,38 @@
+    if (ip == AMD_IP_GFX) {
+       ac_cmdbuf_event_write(V_028A90_VS_PARTIAL_FLUSH);
+       ac_cmdbuf_event_write(V_028A90_PS_PARTIAL_FLUSH);
+-      ac_cmdbuf_event_write(V_028A90_FLUSH_AND_INV_CB_META);
+-      ac_cmdbuf_event_write(V_028A90_FLUSH_AND_INV_DB_META);
++
++      if (pdev->info.gfx_level >= GFX7) {
++         ac_cmdbuf_event_write(V_028A90_FLUSH_AND_INV_CB_META);
++         ac_cmdbuf_event_write(V_028A90_FLUSH_AND_INV_DB_META);
++      }
+    }
+    ac_cmdbuf_event_write(V_028A90_CS_PARTIAL_FLUSH);
+    ac_cmdbuf_end();
+ 
+-   if (!is_mec)
++   if (pdev->info.gfx_level >= GFX7 && !is_mec)
+       ac_emit_cp_pfp_sync_me(cs->b, false);
+ 
+-   uint32_t cp_coher_cntl =
+-      S_0085F0_TC_ACTION_ENA(1) |
+-      S_0085F0_TCL1_ACTION_ENA(1);
+-
+-   if (ip == AMD_IP_GFX)
+-      cp_coher_cntl |=
+-         S_0085F0_CB_ACTION_ENA(1) |
+-         S_0085F0_CB0_DEST_BASE_ENA(1) |
+-         S_0085F0_CB1_DEST_BASE_ENA(1) |
+-         S_0085F0_CB2_DEST_BASE_ENA(1) |
+-         S_0085F0_CB3_DEST_BASE_ENA(1) |
+-         S_0085F0_CB4_DEST_BASE_ENA(1) |
+-         S_0085F0_CB5_DEST_BASE_ENA(1) |
+-         S_0085F0_CB6_DEST_BASE_ENA(1) |
+-         S_0085F0_CB7_DEST_BASE_ENA(1) |
+-         S_0085F0_DB_ACTION_ENA(1) |
+-         S_0085F0_DB_DEST_BASE_ENA(1);
++   uint32_t cp_coher_cntl = S_0085F0_TC_ACTION_ENA(1);
++
++   if (pdev->info.gfx_level >= GFX7) {
++      cp_coher_cntl |= S_0085F0_TCL1_ACTION_ENA(1);
++
++      if (ip == AMD_IP_GFX) {
++         cp_coher_cntl |=
++            S_0085F0_CB_ACTION_ENA(1) |
++            S_0085F0_CB0_DEST_BASE_ENA(1) |
++            S_0085F0_CB1_DEST_BASE_ENA(1) |
++            S_0085F0_CB2_DEST_BASE_ENA(1) |
++            S_0085F0_CB3_DEST_BASE_ENA(1) |
++            S_0085F0_CB4_DEST_BASE_ENA(1) |
++            S_0085F0_CB5_DEST_BASE_ENA(1) |
++            S_0085F0_CB6_DEST_BASE_ENA(1) |
++            S_0085F0_CB7_DEST_BASE_ENA(1) |
++            S_0085F0_DB_ACTION_ENA(1) |
++            S_0085F0_DB_DEST_BASE_ENA(1);
++      }
++   }
+ 
+    ac_emit_cp_acquire_mem(cs->b, pdev->info.gfx_level, cs->hw_ip, V_581A_PREFETCH_PARSER, cp_coher_cntl);
+ 
