@@ -1,18 +1,18 @@
 pkgname=wine-pure-enhanced
 version=11.16
-revision=2
-_commit=${version}
-_staging_commit=v${version}
+revision=3
+_commit=111e5197390aa008789b002222024229fa2b82cf
+_staging_commit=f1936f02ba06b5012f89f75901944e8c2d26951c
 short_desc="Bleeding-edge Wine build (Staging, WoW64, Wayland) with enhanced patches (proton-ge-custom, wine-osu-patches and more)"
 maintainer="Terromur <terromuroz@proton.me>"
 license="LGPL-2.1-or-later"
 homepage="https://github.com/ventureoo/PKGBUILDs"
 distfiles="
- https://gitlab.winehq.org/wine/wine/-/archive/wine-${_commit}/wine-${_commit}.tar.gz
+ https://gitlab.winehq.org/wine/wine/-/archive/${_commit}/wine-${_commit}.tar.gz
  https://gitlab.winehq.org/wine/wine-staging/-/archive/${_staging_commit}/wine-staging-${_staging_commit}.tar.gz"
 checksum="
- 8b6c9c3591e240a793bd688a044a9041a4664f1e0316fefd5eced5e7bf4a5e17
- 28eb4f177bd6aaeacd23439b5acb973a368fd6a8f94783716da1d9345834ef70"
+ 4fef2ad97ba91e6fbcbbf6467280bc28a28ba33f562c74331dc540fb2cd2a95f
+ 22d7b5f91d2e77a18ddfecdb44c77195ef60cba1928ff2795338bc602a249764"
 build_style=gnu-configure
 configure_args="
  --disable-tests
