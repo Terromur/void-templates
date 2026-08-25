@@ -11,5 +11,5 @@ distfiles="https://github.com/CuerdOS-Project/runitctl/archive/refs/tags/${versi
 checksum=9edffc1ced7780505b1c1e9703246d34c58ea4defe90bee06e1a752c9dcacd50
 do_install() {
 	vbin runitctl
-	vdoc README.md LICENSE
+	vdoc LICENSE
 }
