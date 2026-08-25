@@ -1,0 +1,25 @@
+# Template file for 'fagram-bin'
+pkgname=fagram-bin
+version=2.5.1
+revision=1
+archs="x86_64"
+short_desc="Telegram Desktop based messenger with Feature-rich modifications"
+maintainer="Terromur <terromuroz@proton.me>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/fagramdesktop/fadesktop"
+distfiles="https://github.com/fagramdesktop/fadesktop/releases/download/${version}/fagram-${version}.tar.zst"
+checksum="01bc9ff3ad9e8a2cd5a8012a97cb7adda16b1f4b2a406a43d7f03b7cbea5360e"
+hostmakedepends="chrpath"
+depends="abseil-cpp ada ffmpeg glib hicolor-icon-theme hunspell jemalloc kcoreaddons libavif libdispatch libheif libjxl libstdc++ libXcomposite libXdamage libXrandr libXtst lz4 minizip libopenal openh264 openssl pipewire protobuf qt6-imageformats qt6-svg qt6-wayland rnnoise xxHash zlib"
+provides="fagram-${version}_${revision}"
+conflicts="fagram>=0"
+nodebug=yes
+nostrip=yes
+do_install() {
+    mkdir -p ${DESTDIR}/usr
+    cp -a ${wrksrc}/bin ${wrksrc}/share ${DESTDIR}/usr/
+    chmod 0755 ${DESTDIR}/usr/bin/fagram
+    chmod 0755 ${DESTDIR}/usr/bin/Updater
+    chrpath --delete ${DESTDIR}/usr/bin/fagram
+    chrpath --delete ${DESTDIR}/usr/bin/Updater
+}
