@@ -34,10 +34,6 @@ configure_args=(
     -Dgallium-mediafoundation=disabled
     -Dgallium-drivers=radeonsi
     -Dgallium-extra-hud=false
-    "-Dc_args=-march=native -O2 -fomit-frame-pointer -funsafe-math-optimizations -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -fno-stack-check -D_FORTIFY_SOURCE=0"
-    "-Dc_link_args=-Wl,-O1 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,-z,pack-relative-relocs -Wl,-z,norelro"
-    "-Dcpp_args=-march=native -O2 -fomit-frame-pointer -funsafe-math-optimizations -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -fno-stack-check -D_FORTIFY_SOURCE=0 -Wp,-U_GLIBCXX_ASSERTIONS"
-    "-Dcpp_link_args=-Wl,-O1 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,-z,pack-relative-relocs -Wl,-z,norelro"
     -Dgles1=disabled
     -Dglx=dri
     -Dhtml-docs=disabled
@@ -53,6 +49,9 @@ configure_args=(
     -Dvulkan-layers=device-select,overlay,screenshot,vram-report-limit,anti-lag
 )
 pre_configure() {
+	export CFLAGS="-march=native -O2 -pipe -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-stack-check -D_FORTIFY_SOURCE=0"
+	export CXXFLAGS="${CFLAGS} -Wp,-U_GLIBCXX_ASSERTIONS"
+	export LDFLAGS="-Wl,-O1 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,-z,pack-relative-relocs -Wl,-z,norelro"
     cat > "${wrksrc}/clang-native.ini" <<EOF
 [binaries]
 c       = 'clang'
