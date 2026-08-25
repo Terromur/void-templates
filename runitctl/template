@@ -1,0 +1,15 @@
+# Template file for 'runitctl'
+pkgname=runitctl
+version=1.0
+revision=1
+depends="runit bash"
+short_desc="systemctl-like wrapper for runit services in Void Linux"
+maintainer="Terromur <terromur@users.noreply.github.com>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/CuerdOS-Project/runitctl"
+distfiles="https://github.com/CuerdOS-Project/runitctl/archive/refs/tags/${version}.tar.gz"
+checksum=9edffc1ced7780505b1c1e9703246d34c58ea4defe90bee06e1a752c9dcacd50
+do_install() {
+	vbin runitctl
+	vdoc README.md LICENSE
+}
