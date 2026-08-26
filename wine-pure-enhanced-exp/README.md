@@ -1,16 +1,16 @@
-Differences from wine-pure:
+# Differences from wine-pure:
 1. Local custom patches (controller fixes, improved EAC support, some winewayland enhancements, and minor QoL tweaks), along with custom patches from external repositories (spritz, proton-ge-custom, starcitizen-lug, gwine, wine-osu-patches).
 2. Added aggressive compiler optimization flags.
 3. Improved compatibility for games and applications, with attempts to enhance stability and achieve better performance.
 4. Added support for anime games and THP.
 5. Support for XDG Desktop Portal and its configuration in winecfg.
 
-Pipewire support:
+# Pipewire support:
 ```
 wine reg add "HKEY_CURRENT_USER\Software\Wine\Drivers" /v Audio /t REG_SZ /d pipewire /f
 ```
 
-New environment variables:
+# New environment variables:
 - GWINE_USE_THP — Enables THP support in Wine. For this to work, you must explicitly configure Linux to set THP to madvise for the enabled, shmem_enabled, and defrag parameters.
 - WAYLANDDRV_PRIMARY_MONITOR — Forces the game to run on a specific monitor. Fixes certain display or mouse input issues. You need to specify your monitor's name (e.g., DP-1).
 - WINE_WAYLAND_DISPLAY_INDEX — Forces the Wine Wayland driver to use only the output with the specified index (e.g., 0 for the first output). Also resets the logical position to (0,0) to fix issues with multi-monitor setups. Set to a non-negative integer.
@@ -36,7 +36,7 @@ New environment variables:
 - vblank_mode — Controls the OpenGL VSync behavior on Wayland via Xwayland. Set to 0 to force-disable glXWaitForSbcOML, preventing FPS locking to the monitor refresh rate. Set to any non-zero value to keep the default behavior (FPS locked).
 
 
-The following variables are intended to improve gamepad compatibility and behavior:
+# The following variables are intended to improve gamepad compatibility and behavior:
 
 - PROTON_DISABLE_HIDRAW — Disables hidraw. Typically used to fix duplicate/double controller issues.
 - PROTON_PREFER_SDL — Should theoretically do the same thing by giving preference to SDL.

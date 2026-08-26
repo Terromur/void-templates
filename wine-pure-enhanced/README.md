@@ -1,11 +1,11 @@
-Differences from wine-pure:
+# Differences from wine-pure:
 1. Local custom patches (controller fixes, improved EAC support, some winewayland enhancements, and minor QoL tweaks), along with custom patches from external repositories (spritz, proton-ge-custom, starcitizen-lug, gwine, wine-osu-patches).
 2. Added aggressive compiler optimization flags.
 3. Improved compatibility for games and applications, with attempts to enhance stability and achieve better performance.
 4. Added support for anime games and THP.
 5. Support for XDG Desktop Portal and its configuration in winecfg.
 
-New environment variables:
+# New environment variables:
 - GWINE_USE_THP — Enables THP support in Wine. For this to work, you must explicitly configure Linux to set THP to madvise for the enabled, shmem_enabled, and defrag parameters.
 - WAYLANDDRV_PRIMARY_MONITOR — Forces the game to run on a specific monitor. Fixes certain display or mouse input issues. You need to specify your monitor's name (e.g., DP-1).
 - WINE_ENABLE_TIMEOUT_FIX — Fixes network connection issues in games by overriding the timeout value (useful for Genshin Impact, Zenless Zone Zero, etc.).
@@ -23,7 +23,7 @@ New environment variables:
 - WINE_UNOPENABLE_DEVICE_IS_NOT_BAD — Suppresses STATUS_BAD_DEVICE_TYPE when a file is not readable. Set to non-zero to work around RSI Launcher issues with game installs outside C:.
 
 
-The following variables are intended to improve gamepad compatibility and behavior:
+# The following variables are intended to improve gamepad compatibility and behavior:
 
 - PROTON_DISABLE_HIDRAW — Disables hidraw. Typically used to fix duplicate/double controller issues.
 - PROTON_PREFER_SDL — Should theoretically do the same thing by giving preference to SDL.
