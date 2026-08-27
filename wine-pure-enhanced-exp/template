@@ -1,7 +1,7 @@
 pkgname=wine-pure-enhanced-exp
 version=11.16
-revision=4
-_commit=86dc0c4ec51910a895e8c34d470cbcd732cfd476
+revision=5
+_commit=3489c6531091e307d5865e796e85cb871c90bc6e
 _staging_commit=719588ab20f00247284f27273924be8799de012a
 short_desc="Bleeding-edge Wine build (Staging, WoW64, Wayland) with enhanced patches (proton-ge-custom, wine-osu-patches and more)"
 maintainer="Terromur <terromuroz@proton.me>"
@@ -11,7 +11,7 @@ distfiles="
  https://gitlab.winehq.org/wine/wine/-/archive/${_commit}/wine-${_commit}.tar.gz
  https://gitlab.winehq.org/wine/wine-staging/-/archive/${_staging_commit}/wine-staging-${_staging_commit}.tar.gz"
 checksum="
- 3e57f9960127964d19de14cc91062840b85a74ebb681ced062545219c6dae65e
+ 7e34b362e96bcfb6b8faf6da106877e72321d4a23e90da24c2eeba3b32a0e9c3
  7866b041cb9f54f662c897ad633d17ebf45295f0d2d03423ab58cafe397d26a3"
 build_style=gnu-configure
 configure_args="
@@ -331,7 +331,7 @@ do_configure() {
     export AR=llvm-ar
     export RANLIB=llvm-ranlib
     export NM=llvm-nm
-    local _base_flags="-march=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-ident"
+    local _base_flags="-march=native -mtune=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-ident"
     export CFLAGS="${_base_flags} -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=0"
     export CXXFLAGS="${CFLAGS} -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     export CROSSCFLAGS="${_base_flags} -D_FORTIFY_SOURCE=0" 
