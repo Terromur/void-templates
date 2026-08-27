@@ -1,0 +1,69 @@
+# Template file for 'dxvk-low-latency-avx'
+pkgname=dxvk-low-latency-avx
+version=3.0.2
+revision=1
+archs="x86_64"
+hostmakedepends="meson ninja glslang git cross-i686-w64-mingw32 cross-x86_64-w64-mingw32"
+makedepends=""
+depends="vulkan-loader"
+short_desc="A Vulkan-based compatibility layer for Direct3D 9/10/11 for Wine (Windows DLL version)"
+maintainer="Terromur <terromuroz@proton.me>"
+license="zlib/libpng"
+homepage="https://github.com/doitsujin/dxvk"
+provides="dxvk-${version}_${revision} d9vk-${version}_${revision}"
+conflicts="d9vk dxvk dxvk-bin dxvk-pure"
+nofetch=yes
+noextract=yes
+patch_args="-Np1"
+do_fetch() {
+    msg_normal "Cloning DXVK git repository (master branch)...\n"
+    git clone --depth 1 --branch low-latency-framepacing https://github.com/netborg-afps/dxvk-low-latency.git ${wrksrc}
+    cd ${wrksrc}
+    msg_normal "Initializing submodules...\n"
+    git submodule update --init --depth 1 --recursive
+}
+do_configure() {
+    cd ${wrksrc}
+    
+    local base_cflags="-march=native -mtune=native -O3 -mno-avx -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
+    local base_cxxflags="$base_cflags"
+    local cflags_64="$base_cflags -D_FILE_OFFSET_BITS=64"
+    local cxxflags_64="$base_cxxflags -D_FILE_OFFSET_BITS=64 -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
+    local cflags_32="$base_cflags"
+    local cxxflags_32="$base_cxxflags -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
+    local ldflags="-Wl,-O3 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,--file-alignment=4096"
+    
+    sed -i build-win64-gcc.txt \
+        -e "s|@CARGS@|'${cflags_64// /\',\'}'|g" \
+        -e "s|@CXXARGS@|'${cxxflags_64// /\',\'}'|g" \
+        -e "s|@LDARGS@|'${ldflags// /\',\'}'|g"
+
+    sed -i build-win32-gcc.txt \
+        -e "s|@CARGS@|'${cflags_32// /\',\'}'|g" \
+        -e "s|@CXXARGS@|'${cxxflags_32// /\',\'}'|g" \
+        -e "s|@LDARGS@|'${ldflags// /\',\'}'|g"
+}
+do_build() {
+    cd ${wrksrc}
+    
+    meson setup . build/x64 \
+        --cross-file build-win64-gcc.txt \
+        --prefix "/usr/share/dxvk/x64" \
+        --bindir "" --libdir "" \
+        --buildtype "release" \
+        --strip
+    ninja -C build/x64 -v
+
+    meson setup . build/x32 \
+        --cross-file build-win32-gcc.txt \
+        --prefix "/usr/share/dxvk/x32" \
+        --bindir "" --libdir "" \
+        --buildtype "release" \
+        --strip
+    ninja -C build/x32 -v
+}
+do_install() {
+     DESTDIR="$DESTDIR" ninja -C "build/x32" install
+     DESTDIR="$DESTDIR" ninja -C "build/x64" install
+     vlicense LICENSE
+}
