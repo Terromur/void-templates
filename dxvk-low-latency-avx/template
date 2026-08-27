@@ -25,7 +25,7 @@ do_fetch() {
 do_configure() {
     cd ${wrksrc}
     
-    local base_cflags="-march=native -mtune=native -O3 -mno-avx -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
+    local base_cflags="-march=native -mtune=native -O3 -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
     local base_cxxflags="$base_cflags"
     local cflags_64="$base_cflags -D_FILE_OFFSET_BITS=64"
     local cxxflags_64="$base_cxxflags -D_FILE_OFFSET_BITS=64 -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
