@@ -1,5 +1,5 @@
-# Template file for 'dxvk-low-latency-avx'
-pkgname=dxvk-low-latency-avx
+# Template file for 'dxvk-low-latency'
+pkgname=dxvk-low-latency
 version=3.0.2
 revision=1
 archs="x86_64"
@@ -24,15 +24,14 @@ do_fetch() {
 }
 do_configure() {
     cd ${wrksrc}
-    
-    local base_cflags="-march=native -mtune=native -O3 -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
+    local base_cflags="-march=native -mtune=native -O3 -mno-avx -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
     local base_cxxflags="$base_cflags"
     local cflags_64="$base_cflags -D_FILE_OFFSET_BITS=64"
     local cxxflags_64="$base_cxxflags -D_FILE_OFFSET_BITS=64 -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     local cflags_32="$base_cflags"
     local cxxflags_32="$base_cxxflags -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     local ldflags="-Wl,-O3 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,--file-alignment=4096"
-    
+
     sed -i build-win64-gcc.txt \
         -e "s|@CARGS@|'${cflags_64// /\',\'}'|g" \
         -e "s|@CXXARGS@|'${cxxflags_64// /\',\'}'|g" \
@@ -45,7 +44,7 @@ do_configure() {
 }
 do_build() {
     cd ${wrksrc}
-    
+
     meson setup . build/x64 \
         --cross-file build-win64-gcc.txt \
         --prefix "/usr/share/dxvk/x64" \

@@ -1,6 +1,6 @@
 pkgname=wine-pure-enhanced-exp
 version=11.16
-revision=6
+revision=7
 _commit=e6e9d7627c0a7d660c342b1c38ff0e20dacfd1f9
 _staging_commit=719588ab20f00247284f27273924be8799de012a
 short_desc="Bleeding-edge Wine build (Staging, WoW64, Wayland) with enhanced patches (proton-ge-custom, wine-osu-patches and more)"
@@ -151,6 +151,7 @@ pre_configure() {
         "0006-comdlg32-use-XDG-Desktop-Portal-for-native-file-dial.patch"
         "0007-comdlg32-fix-portal-dialog-compatibility-and-respons.patch"
         "0008-comdlg32-add-wow64-unix-call-table-for-32-bit.patch"
+        "proton-em-winewayland.patch"
 )
 
     for p in "${patches[@]}"; do
@@ -265,6 +266,7 @@ pre_configure() {
         -not -path "${spritz_patches_dir}/0006-misc/0010-winex11-Keep-track-of-the-window-manager-name.patch" \
         -not -path "${spritz_patches_dir}/0006-misc/0011-win32u-Add-a-new-driver-entry-to-check-window-manage.patch" \
         -not -path "${spritz_patches_dir}/0006-misc/0012-winex11-Add-Muffin-Cinnamon-to-Mutter-detection.patch" \
+        -not -path "${spritz_patches_dir}/0007-winewayland/*" \
         -not -path "${spritz_patches_dir}/0008-pending-MR/10829-Futex-optimizations/*" \
         -not -path "${spritz_patches_dir}/0008-pending-MR/11339-winegstreamer-wma-decoder-Implement-Get-Input-Output-CurrentType/*" \
         -not -path "${spritz_patches_dir}/0008-pending-MR/9866-Revert-ntdll-Switch-to-CLOCK-BOOTTIME-for-monotonic-counters-when-available-/*" \
@@ -300,6 +302,10 @@ pre_configure() {
         -not -path "${starcitizen_lug_dir}/wine/0002-wineopenxr_enable.patch" \
         -not -path "${starcitizen_lug_dir}/wine/silence-sc-unsupported-os.patch" \
         -not -path "${starcitizen_lug_dir}/wine/default-to-wayland.patch" \
+        -not -path "${starcitizen_lug_dir}/wine/0079-HACK-winewayland-add-support-for-picking-primary-mon.patch" \
+        -not -path "${starcitizen_lug_dir}/wine/0088-fixup-HACK-winewayland-add-support-for-picking-prima.patch" \
+        -not -path "${starcitizen_lug_dir}/wine/winewayland-fullscreen-idle-inhibit.patch" \
+        -not -path "${starcitizen_lug_dir}/wine/winewayland-guess-primary-output.patch" \
         -print0 | sort -z)
     fi
     
