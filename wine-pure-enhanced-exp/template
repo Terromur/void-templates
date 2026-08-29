@@ -1,7 +1,7 @@
 pkgname=wine-pure-enhanced-exp
 version=11.16
-revision=7
-_commit=e6e9d7627c0a7d660c342b1c38ff0e20dacfd1f9
+revision=10
+_commit=2ecc2f84b45ec42afbf1725d756181180a8204b1
 _staging_commit=719588ab20f00247284f27273924be8799de012a
 short_desc="Bleeding-edge Wine build (Staging, WoW64, Wayland) with enhanced patches (proton-ge-custom, wine-osu-patches and more)"
 maintainer="Terromur <terromuroz@proton.me>"
@@ -11,7 +11,7 @@ distfiles="
  https://gitlab.winehq.org/wine/wine/-/archive/${_commit}/wine-${_commit}.tar.gz
  https://gitlab.winehq.org/wine/wine-staging/-/archive/${_staging_commit}/wine-staging-${_staging_commit}.tar.gz"
 checksum="
- 04816e0c95c5777ba4be5240b724461b2e9b96e59e7676105d74fbb96303c90e
+ 43b032f96aae5ceff1982aa889f3877a159f8db29fefb3a3e9d86401a68544cb
  7866b041cb9f54f662c897ad633d17ebf45295f0d2d03423ab58cafe397d26a3"
 build_style=gnu-configure
 configure_args="
@@ -129,7 +129,6 @@ pre_configure() {
         "Configure-Enforce-4-byte-stack-alignment-on-clang-for-PE-builds.patch"
         "10108.patch"
         "10829.patch"
-        "10864.patch"
         "kernelbase-Handle-misaligned-stack-in-OpenThread.patch"
         "joystick.patch"
         "no-winemenubuilder.patch"
@@ -218,6 +217,7 @@ pre_configure() {
         -not -path "${proton_patches_dir}/protonfixes/*" \
         -not -path "${proton_patches_dir}/vkd3d-proton/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/disabled/0210-winedmo-Handle-demuxer-URLs-without-an-extension.patch" \
+        -not -path "${proton_patches_dir}/wine-hotfixes/disabled/wine-wayland-offscreen-rendering/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/em-fixups/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/0001-decouple-wineopenxr-from-steamvr-and-integrate-it-in.patch" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/0001-server-Dynamically-relocate-.exes-by-default-too.patch" \
@@ -337,13 +337,13 @@ do_configure() {
     export AR=llvm-ar
     export RANLIB=llvm-ranlib
     export NM=llvm-nm
-    local _base_flags="-march=native -mtune=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-ident"
+    local _base_flags="-march=native -mtune=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fsplit-lto-unit -fcf-protection=none -mharden-sls=none -fno-ident -mllvm -enable-interleaved-mem-accesses -mllvm -enable-loopinterchange -mllvm -adce-remove-loops -mllvm -enable-ext-tsp-block-placement=1 -mllvm -inline-threshold=300 -mllvm -enable-dfa-jump-thread"
     export CFLAGS="${_base_flags} -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=0"
     export CXXFLAGS="${CFLAGS} -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     export CROSSCFLAGS="${_base_flags} -D_FORTIFY_SOURCE=0" 
     export CROSSCXXFLAGS="${CROSSCFLAGS} -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     export CROSSLDFLAGS="-Wl,/FILEALIGN:4096,/INCREMENTAL:NO,/LTCG,/OPT:REF,/OPT:ICF=3"
-    export LDFLAGS="-fuse-ld=lld -flto=auto -O3 -Wl,--lto-O3 -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,-z,pack-relative-relocs -Wl,--strip-all -Wl,--icf=safe -Wl,--build-id=none -Wl,-z,norelro"
+    export LDFLAGS="-fuse-ld=lld -flto=auto -O3 -Wl,--lto-O3 -Wl,--lto-CGO3 -Wl,--hash-style=gnu -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,-z,pack-relative-relocs -Wl,--strip-all -Wl,--icf=safe -Wl,--build-id=none -Wl,-z,norelro"
 
     cd "${wrksrc}/wine"
     ./configure --prefix=/usr --libdir=/usr/lib ${configure_args}
