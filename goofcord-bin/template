@@ -1,27 +1,20 @@
 # Template file for 'goofcord-bin'
 pkgname=goofcord-bin
 version=2.3.0
-revision=1
+revision=2
 archs="x86_64"
-build_style=fetch
+build_style=gnu-makefile
 short_desc="Take control of your Discord experience with GoofCord"
 maintainer="Terromur <terromuroz@proton.me"
 license="OSL-3.0"
 homepage="https://github.com/Milkshiift/GoofCord"
 distfiles="https://github.com/Milkshiift/GoofCord/releases/download/v${version}/GoofCord-${version}-linux-x64.tar.xz"
 checksum="de983cab789bd56cb24f427571680e00dda0312d1d81bb784652947bfa6f67e1"
-do_extract() {
-	bsdtar -xf "${XBPS_SRCDISTDIR}/${pkgname}-${version}/GoofCord-${version}-linux-x64.tar.xz" -C "${wrksrc}"
-}
 do_install() {
-	appdir="${wrksrc}/GoofCord-${version}-linux-x64"
-	destdir="${DESTDIR}/usr/lib/${pkgname%-bin}"
-	mkdir -p "${destdir}"
-	cp -a "${appdir}"/* "${destdir}/"
+	mkdir -p "${DESTDIR}/usr/lib/${pkgname%-bin}"
+	cp -a "${wrksrc}"/* "${DESTDIR}/usr/lib/${pkgname%-bin}/"
 	mkdir -p "${DESTDIR}/usr/bin"
-	cat > "${DESTDIR}/usr/bin/${pkgname%-bin}" <<-EOF
-	#!/bin/sh
-	exec /usr/lib/${pkgname%-bin}/goofcord "\$@"
-	EOF
+	echo '#!/bin/sh' > "${DESTDIR}/usr/bin/${pkgname%-bin}"
+	echo 'exec /usr/lib/'"${pkgname%-bin}"'/goofcord "$@"' >> "${DESTDIR}/usr/bin/${pkgname%-bin}"
 	chmod 755 "${DESTDIR}/usr/bin/${pkgname%-bin}"
 }
