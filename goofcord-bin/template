@@ -1,7 +1,7 @@
 # Template file for 'goofcord-bin'
 pkgname=goofcord-bin
 version=2.3.0
-revision=2
+revision=6
 archs="x86_64"
 build_style=gnu-makefile
 short_desc="Take control of your Discord experience with GoofCord"
@@ -17,4 +17,8 @@ do_install() {
 	echo '#!/bin/sh' > "${DESTDIR}/usr/bin/${pkgname%-bin}"
 	echo 'exec /usr/lib/'"${pkgname%-bin}"'/goofcord "$@"' >> "${DESTDIR}/usr/bin/${pkgname%-bin}"
 	chmod 755 "${DESTDIR}/usr/bin/${pkgname%-bin}"
+	mkdir -p "${DESTDIR}/usr/share/applications"
+	cp -a "${FILESDIR}/goofcord.desktop" "${DESTDIR}/usr/share/applications/"
+	mkdir -p "${DESTDIR}/usr/share/icons"
+	cp -a "${FILESDIR}/hicolor" "${DESTDIR}/usr/share/icons/"
 }
