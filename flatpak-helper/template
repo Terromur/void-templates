@@ -1,6 +1,6 @@
 # Template file for 'flatpak-helper'
 pkgname=flatpak-helper
-version=1.0.0
+version=1.0.1
 revision=1
 build_style=cargo
 short_desc="A helper tool for Flatpak management"
@@ -8,6 +8,6 @@ maintainer="Terromur <terromuroz@proton.me>"
 license="GPL-3.0-or-later"
 homepage="https://github.com/ArisoN-ext/flatpak-helper"
 distfiles="https://github.com/ArisoN-ext/flatpak-helper/archive/refs/tags/v${version}.tar.gz"
-checksum=9be74d0446c33615e2dc8e8de2937e3899186def0d91f1e5d22d2e3df8ecf0bc
+checksum=d7141ce7df566bf3bfe2f8268fd9288694bf193e8050e3e52166f52d320a41fe
 depends="flatpak"
 makedepends="cargo" 
