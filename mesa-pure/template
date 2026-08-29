@@ -49,7 +49,8 @@ configure_args=(
     -Dvulkan-layers=device-select,overlay,screenshot,vram-report-limit,anti-lag
 )
 pre_configure() {
-	export CFLAGS="-march=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-ident -mllvm -adce-remove-loops -mllvm -enable-ext-tsp-block-placement=1 -mllvm -enable-dfa-jump-thread -mtls-dialect=gnu2 -fsplit-machine-functions -D_FORTIFY_SOURCE=0"	export CXXFLAGS="${CFLAGS} -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
+	export CFLAGS="-march=native -O2 -pipe -fno-stack-protector -fno-stack-check -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -mharden-sls=none -fno-ident -mllvm -adce-remove-loops -mllvm -enable-ext-tsp-block-placement=1 -mllvm -enable-dfa-jump-thread -mtls-dialect=gnu2 -fsplit-machine-functions -D_FORTIFY_SOURCE=0"
+    export CXXFLAGS="${CFLAGS} -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
 	export LDFLAGS="-fuse-ld=lld -flto=auto -O3 -Wl,--lto-O3 -Wl,--lto-CGO3 -Wl,--hash-style=gnu -Wl,--as-needed -Wl,-Bsymbolic-functions -Wl,-z,pack-relative-relocs -Wl,--strip-all -Wl,--icf=safe -Wl,-z,norelro"
     cat > "${wrksrc}/clang-native.ini" <<EOF
 [binaries]
