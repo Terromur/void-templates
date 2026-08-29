@@ -1,0 +1,13 @@
+# Template file for 'flatpak-helper'
+pkgname=flatpak-helper
+version=1.0.0
+revision=1
+build_style=cargo
+short_desc="A helper tool for Flatpak management"
+maintainer="Your Name <you@example.com>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/ArisoN-ext/flatpak-helper"
+distfiles="https://github.com/ArisoN-ext/flatpak-helper/archive/refs/tags/v${version}.tar.gz"
+checksum=9be74d0446c33615e2dc8e8de2937e3899186def0d91f1e5d22d2e3df8ecf0bc
+depends="flatpak"
+makedepends="cargo" 
