@@ -1,0 +1,46 @@
+# Template file for 'sable-nightly'
+pkgname=sable-nightly
+version=1.21.1
+revision=1
+archs="x86_64"
+hostmakedepends="git nodejs pnpm cargo rust pkg-config"
+makedepends="cairo-devel dbus-devel gdk-pixbuf-devel glib-devel gtk+3-devel libsoup3-devel libwebkit2gtk41-devel"
+depends="cairo dbus gdk-pixbuf glib gtk+3 hicolor-icon-theme libsoup3 libwebkit2gtk41"
+short_desc="Almost stable Matrix client"
+maintainer="Terromur <terromuroz@proton.me>"
+license="AGPL-3.0-or-later"
+homepage="https://github.com/SableClient/Sable"
+nofetch=yes
+noextract=yes
+do_fetch() {
+    msg_normal "Cloning Sable from dev branch...\n"
+    git clone --depth 1 --branch dev https://github.com/SableClient/Sable.git ${wrksrc}
+    cd ${wrksrc}
+}
+pre_build() {
+        sed -i 's@node scripts/install-knope.js@true@' package.json
+        pnpm add -D @tauri-apps/cli
+}
+do_build() {
+    pnpm install --frozen-lockfile
+    pnpm tauri build --no-bundle -- --features wry --no-default-features
+}
+do_install() {
+    vmkdir opt/${pkgname}
+    vinstall src-tauri/target/release/sable 755 opt/${pkgname}
+    vmkdir usr/bin
+    ln -sf /opt/${pkgname}/sable ${DESTDIR}/usr/bin/sable
+    local icon_dir="src-tauri/icons"
+    local sizes="16 24 32 48 64 96 128 256 512"
+    for size in ${sizes}; do
+        if [ -f "${icon_dir}/${size}x${size}.png" ]; then
+            vinstall "${icon_dir}/${size}x${size}.png" 644 \
+                usr/share/icons/hicolor/${size}x${size}/apps sable.png
+        fi
+    done
+    if [ -f "${icon_dir}/128x128@2x.png" ]; then
+        vinstall "${icon_dir}/128x128@2x.png" 644 \
+            usr/share/icons/hicolor/256x256@2/apps sable.png
+    fi
+    vinstall ${FILESDIR}/sable.desktop 644 usr/share/applications
+}
