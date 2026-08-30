@@ -1,7 +1,7 @@
 # Template file for 'sable-nightly'
 pkgname=sable-nightly
 version=1.21.1
-revision=1
+revision=2
 archs="x86_64"
 hostmakedepends="git nodejs pnpm cargo rust pkg-config"
 makedepends="cairo-devel dbus-devel gdk-pixbuf-devel glib-devel gtk+3-devel libsoup3-devel libwebkit2gtk41-devel"
@@ -19,11 +19,10 @@ do_fetch() {
 }
 pre_build() {
         sed -i 's@node scripts/install-knope.js@true@' package.json
-        pnpm add -D @tauri-apps/cli
 }
 do_build() {
     pnpm install --frozen-lockfile
-    pnpm tauri build --no-bundle -- --features wry --no-default-features
+    pnpm tauri build --no-bundle --no-sign -- --locked
 }
 do_install() {
     vmkdir opt/${pkgname}
