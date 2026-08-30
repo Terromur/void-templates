@@ -1,6 +1,6 @@
 # Template file for 'yurigram-bin'
 pkgname=yurigram-bin
-version=7.1.2
+version=7.1.3
 revision=1
 archs="x86_64"
 short_desc="Yet another unofficial tdesktop client"
@@ -12,7 +12,7 @@ replaces="yukigram-rua>=0 yukigram-rua-bin>=0"
 conflicts="yurigram>=0 yukigram-rua>=0 yukigram-rua-bin>=0"
 depends="fontconfig freetype glib glibc hicolor-icon-theme libX11"
 distfiles="https://github.com/Revincx/Yurigram/releases/download/${version}-${revision}/yurigram-${version}-${revision}-${XBPS_TARGET_MACHINE}.tar.gz"
-checksum="3f129bdc02648d38c6db7d489d339fa4cdf83296204466228eb949f5b4de3523"
+checksum="9a8a6b10e7c0b9bfb26993a671b32aee81666796b85cf6a05c9694a829f00b83"
 nostrip=yes
 do_install() {
 	vbin bin/yurigram
