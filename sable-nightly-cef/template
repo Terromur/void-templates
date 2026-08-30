@@ -1,0 +1,45 @@
+# Template file for 'sable-nightly-cef'
+pkgname=sable-nightly-cef
+version=1.21.1
+revision=1
+archs="x86_64"
+hostmakedepends="git pnpm python3 cargo pkg-config"
+makedepends="glib-devel gtk+3-devel libsoup3-devel
+ libwebkit2gtk41-devel nspr-devel nss-devel"
+depends="vulkan-loader"
+short_desc="Almost stable Matrix client"
+maintainer="Terromur <terromuroz@proton.me>"
+license="AGPL-3.0-or-later"
+homepage="https://github.com/SableClient/Sable"
+changelog="https://github.com/SableClient/Sable/raw/refs/heads/dev/CHANGELOG.md"
+nofetch=yes
+noextract=yes
+do_fetch() {
+    msg_normal "Cloning Sable from dev branch...\n"
+    git clone --depth 1 --branch dev https://github.com/SableClient/Sable.git ${wrksrc}
+    cd ${wrksrc}
+}
+pre_build() {
+	pnpm install --frozen-lockfile
+}
+
+do_build() {
+	pnpm tauri:cef build --no-updater
+}
+
+do_install() {
+	vmkdir opt/${pkgname}
+	vinstall src-tauri/target/release/sable 755 opt/${pkgname}
+	scripts/cef/copy-libs.sh release ${DESTDIR}/opt/${pkgname}
+	rm ${DESTDIR}/opt/${pkgname}/libvulkan.so.1
+
+	vmkdir usr/bin
+	ln -sf /opt/${pkgname}/sable ${DESTDIR}/usr/bin/sable
+
+	vinstall ${FILESDIR}/sable.desktop 644 usr/share/applications
+
+	for size in 32 64 128; do
+		vinstall src-tauri/icons/${size}x${size}.png 644 \
+			usr/share/icons/hicolor/${size}x${size}/apps ${pkgname}.png
+	done
+}

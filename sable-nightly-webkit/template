@@ -1,5 +1,5 @@
-# Template file for 'sable-nightly'
-pkgname=sable-nightly
+# Template file for 'sable-nightly-webkit'
+pkgname=sable-nightly-webkit
 version=1.21.1
 revision=2
 archs="x86_64"
