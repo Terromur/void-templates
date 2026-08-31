@@ -145,6 +145,9 @@ pre_configure() {
         "0007-comdlg32-fix-portal-dialog-compatibility-and-respons.patch"
         "0008-comdlg32-add-wow64-unix-call-table-for-32-bit.patch"
         "proton-em-winewayland.patch"
+        "0001-ntdll-alertable-sleep-fast-path.patch"
+        "0007-msi-rewrite-all-tables-on-long-strref.patch"
+        "0008-wined3d-only-map-host-visible-bo.patch"
 )
 
     for p in "${patches[@]}"; do
@@ -274,6 +277,7 @@ pre_configure() {
         -not -path "${gwine_patches_dir}/use_real_username.mypatch" \
         -not -path "${gwine_patches_dir}/winewayland-keep-toplevel-for-client-surfaces.mypatch" \
         -not -path "${gwine_patches_dir}/wmadec_getcurrenttype.mypatch" \
+        -not -path "${gwine_patches_dir}/no_exe_executable_bit.mypatch" \
         -print0 | sort -z)
     fi
             local wine_osu_patches_dir="${wrksrc}/wine-osu-patches"

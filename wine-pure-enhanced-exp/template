@@ -1,6 +1,6 @@
 pkgname=wine-pure-enhanced-exp
 version=11.16
-revision=10
+revision=11
 _commit=2ecc2f84b45ec42afbf1725d756181180a8204b1
 _staging_commit=719588ab20f00247284f27273924be8799de012a
 short_desc="Bleeding-edge Wine build (Staging, WoW64, Wayland) with enhanced patches (proton-ge-custom, wine-osu-patches and more)"
@@ -151,6 +151,9 @@ pre_configure() {
         "0007-comdlg32-fix-portal-dialog-compatibility-and-respons.patch"
         "0008-comdlg32-add-wow64-unix-call-table-for-32-bit.patch"
         "proton-em-winewayland.patch"
+        "0001-ntdll-alertable-sleep-fast-path.patch"
+        "0007-msi-rewrite-all-tables-on-long-strref.patch"
+        "0008-wined3d-only-map-host-visible-bo.patch"
 )
 
     for p in "${patches[@]}"; do
@@ -324,6 +327,7 @@ pre_configure() {
         -not -path "${gwine_patches_dir}/use_real_username.mypatch" \
         -not -path "${gwine_patches_dir}/winewayland-keep-toplevel-for-client-surfaces.mypatch" \
         -not -path "${gwine_patches_dir}/wmadec_getcurrenttype.mypatch" \
+        -not -path "${gwine_patches_dir}/no_exe_executable_bit.mypatch" \
         -print0 | sort -z)
     fi
     
