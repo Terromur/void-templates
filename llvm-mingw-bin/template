@@ -1,0 +1,28 @@
+# Template file for 'llvm-mingw-bin'
+pkgname=llvm-mingw-bin
+version=20260826
+revision=1
+_tag=20260826
+_ucrt_suffix="-ucrt"
+_platform="ubuntu-22.04"
+_arch="x86_64"
+short_desc="Self-contained LLVM/Clang/LLD based mingw-w64 toolchain (i686, x86_64, armv7, aarch64)"
+maintainer="Terromur <terromuroz@proton.me>"
+license="custom:ISC"
+homepage="https://github.com/mstorsjo/llvm-mingw"
+distfiles="https://github.com/mstorsjo/llvm-mingw/releases/download/${_tag}/llvm-mingw-${_tag}${_ucrt_suffix}-${_platform}-${_arch}.tar.xz"
+checksum=cee8d2ce3da5145ce4dc882e70d0b0719a783d53a99752c60948fc0659975a65
+archs="x86_64"
+skiprdeps='.*w64-mingw32.*'
+noverifyrdeps=yes
+skiprdeps="*"
+nostrip=yes
+do_install() {
+    local dest_opt="${DESTDIR}/opt/llvm-mingw"
+    vmkdir /opt/llvm-mingw
+    cp -a "${wrksrc}"/* "${dest_opt}/"
+    vmkdir /etc/profile.d
+    echo 'export PATH="${PATH}:/opt/llvm-mingw/bin"' > "${DESTDIR}/etc/profile.d/llvm-mingw.sh"
+    vmkdir "/usr/share/licenses/${pkgname}"
+    install -m644 "${wrksrc}/LICENSE.TXT" "${DESTDIR}/usr/share/licenses/${pkgname}/LICENSE.TXT"
+}
