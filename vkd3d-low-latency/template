@@ -48,7 +48,7 @@ do_build() {
 
     meson setup . build/x32 \
         --cross-file build-win32.txt \
-        --prefix "/usr/share/vkd3d-proton/x32" \
+        --prefix "/usr/share/vkd3d-proton/x86" \
         --bindir "" --libdir "" \
         --buildtype "release" \
         --strip
