@@ -1,0 +1,3 @@
+pkgname=linux
+pattern="cachyos-\\K7\\.2[.-][\\w.]+(?=-\\d+)"
+ignore="*rc*"

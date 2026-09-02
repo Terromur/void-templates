@@ -1,0 +1,57 @@
+From dd390b05ec9f9cbca6d03c9a3885d3eb1b76d4d2 Mon Sep 17 00:00:00 2001
+From: Judas Drekonym <77771385+RAMDRAGONS@users.noreply.github.com>
+Date: Wed, 8 Jul 2026 01:18:04 -0400
+Subject: [PATCH] Apply 0260-fair-update-cachy-mods.patch
+
+---
+ init/init_task.c    |  2 +-
+ kernel/sched/fair.c | 10 +++-------
+ 2 files changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/init/init_task.c b/init/init_task.c
+index b67ef6040a..cf04021d41 100644
+--- a/init/init_task.c
++++ b/init/init_task.c
+@@ -180,7 +180,7 @@ struct task_struct init_task __aligned(L1_CACHE_BYTES) = {
+ 	INIT_CPU_TIMERS(init_task)
+ 	.pi_lock	= __RAW_SPIN_LOCK_UNLOCKED(init_task.pi_lock),
+ 	.blocked_lock	= __RAW_SPIN_LOCK_UNLOCKED(init_task.blocked_lock),
+-	.timer_slack_ns = 50000, /* 50 usec default slack */
++	.timer_slack_ns = 31250, /* 31.25 usec default slack */
+ 	.thread_pid	= &init_struct_pid,
+ 	.thread_node	= LIST_HEAD_INIT(init_signals.thread_head),
+ #ifdef CONFIG_AUDIT
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 2816afaf9b..10979e07e5 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -70,7 +70,7 @@
+  *
+  * (default SCHED_TUNABLESCALING_LOG = *(1+ilog(ncpus))
+  */
+-unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
++unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_NONE;
+ 
+ /*
+  * Minimal preemption granularity for CPU-bound tasks:
+@@ -81,15 +81,11 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
+ unsigned int sysctl_sched_base_slice			= 400000ULL;
+ static unsigned int normalized_sysctl_sched_base_slice	= 400000ULL;
+ #else
+-unsigned int sysctl_sched_base_slice			= 700000ULL;
+-static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
++unsigned int sysctl_sched_base_slice			= 800000000ULL / HZ * (HZ > 500? 2: 1);
++static unsigned int normalized_sysctl_sched_base_slice	= 800000000ULL / HZ * (HZ > 500? 2: 1);
+ #endif /* CONFIG_CACHY */
+ 
+-#ifdef CONFIG_CACHY
+ __read_mostly unsigned int sysctl_sched_migration_cost	= 400000UL;
+-#else
+-__read_mostly unsigned int sysctl_sched_migration_cost	= 500000UL;
+-#endif
+ 
+ static int __init setup_sched_thermal_decay_shift(char *str)
+ {
+-- 
+2.55.0
+

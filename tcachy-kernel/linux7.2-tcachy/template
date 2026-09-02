@@ -1,0 +1,696 @@
+# Template file for 'linux7.2-tcachy'
+pkgname=linux7.2-tcachy
+version=7.2.2
+revision=1
+short_desc="Linux kernel and modules (${version%.*} series) with CachyOS/tkg/clear/cachymod patches with clang"
+maintainer="Terromur <terromuroz@proton.me>"
+license="GPL-2.0-only"
+homepage="https://github.com/CachyOS/linux-cachyos"
+distfiles="https://github.com/CachyOS/linux/releases/download/cachyos-${version}-1/cachyos-${version}-1.tar.gz"
+checksum=b69413e1941bc9f08d0f5bdf576b4e31ebd948a235d8b8a24a81ba7583e36d77
+python_version=3
+
+build_options="bore o3 performance hz100 hz250 hz300 hz500 hz600 hz750 hz800 hz1000 tick_periodic tick_idle tick_full native_cpu disable_paravirt disable_debug disable_security memory_opt io_net_opt cpu_opt storage_fs misc_opt disable_virt disable_cgroups x86_64_v3 lto_full lto_thin"
+
+build_options_default="o3 tick_full native_cpu memory_opt io_net_opt cpu_opt storage_fs misc_opt lto_thin"
+
+desc_option_bore="Enable BORE CPU scheduler"
+desc_option_o3="Enable KBUILD_CFLAGS -O3 compiler optimization"
+desc_option_performance="Set performance governor as default"
+desc_option_hz100="Set tick rate to 100Hz"
+desc_option_hz250="Set tick rate to 250Hz"
+desc_option_hz300="Set tick rate to 300Hz"
+desc_option_hz500="Set tick rate to 500Hz"
+desc_option_hz600="Set tick rate to 600Hz"
+desc_option_hz750="Set tick rate to 750Hz"
+desc_option_hz1000="Set tick rate to 1000Hz"
+desc_option_tick_periodic="Set tick rate mode to periodic"
+desc_option_tick_idle="Set tick rate mode to idle tickless"
+desc_option_tick_full="Set tick rate mode to full tickless"
+desc_option_native_cpu="Build for native CPU (-march=native)"
+desc_option_disable_paravirt="Disable paravirt"
+desc_option_disable_debug="Disable kernel debug and tracing features"
+desc_option_disable_security="Disable security hardening"
+desc_option_memory_opt="Disable memory tracking, HMM, KSM, THP always and other memory overhead"
+desc_option_io_net_opt="Disable block layer accounting and network busy polling"
+desc_option_cpu_opt="Disable CPU-hungry features, tune RCU and NR_CPUS"
+desc_option_storage_fs="Enable storage and FAT filesystems as built-in"
+desc_option_misc_opt="Miscellaneous performance tweaks and legacy feature removal"
+desc_option_disable_virt="Disable KVM, Xen, and other virtualization guest features"
+desc_option_disable_cgroups="Disable unused cgroup controllers to reduce overhead"
+desc_option_x86_64_v3="Enable x86-64-v3 ISA level"
+desc_option_lto_full="Enable Clang full LTO"
+desc_option_lto_thin="Enable Clang thin LTO"
+
+# XXX Restrict archs until a proper <arch>-dotconfig is available in FILESDIR.
+archs="x86_64*"
+nodebug=yes  # -dbg package is generated below manually
+nostrip=yes
+noverifyrdeps=yes
+noshlibprovides=yes
+preserve=yes
+hostmakedepends="tar xz bc elfutils-devel flex gmp-devel kmod libmpc-devel pkg-config openssl-devel perl uboot-mkimage cpio clang22 llvm22 lld22 pahole python3 which zstd"
+_kernver="${version/rc/0-rc}-tcachy_${revision}"
+triggers="kernel-hooks"
+kernel_hooks_version="${_kernver}"
+
+# Clang/LLVM toolchain
+_toolchain_args="CC=clang AS=clang LD=ld.lld AR=llvm-ar NM=llvm-nm STRIP=llvm-strip
+ OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump HOSTCC=clang HOSTLD=ld.lld HOSTAR=llvm-ar"
+
+# These files could be modified when an external module is built.
+mutable_files="
+ /usr/lib/modules/${_kernver}/modules.builtin.bin
+ /usr/lib/modules/${_kernver}/modules.builtin.alias.bin
+ /usr/lib/modules/${_kernver}/modules.softdep
+ /usr/lib/modules/${_kernver}/modules.dep
+ /usr/lib/modules/${_kernver}/modules.dep.bin
+ /usr/lib/modules/${_kernver}/modules.symbols
+ /usr/lib/modules/${_kernver}/modules.symbols.bin
+ /usr/lib/modules/${_kernver}/modules.alias
+ /usr/lib/modules/${_kernver}/modules.alias.bin
+ /usr/lib/modules/${_kernver}/modules.devname"
+
+# reproducible build
+export KBUILD_BUILD_TIMESTAMP=$(LC_ALL=C date -ud @${SOURCE_DATE_EPOCH:-0})
+export KBUILD_BUILD_USER=voidlinux
+export KBUILD_BUILD_HOST=voidlinux
+
+if [ "$CROSS_BUILD" ]; then
+	_cross="CROSS_COMPILE=${XBPS_CROSS_TRIPLET}-"
+fi
+
+post_patch() {
+	# avoid the strip wrapper, its used to copy the objects to a new location
+	# and required to avoid absolute relocations.
+	vsed -e "s|\$(STRIP) \(--strip-debug -o \$@ \$<;\)|/usr/bin/${STRIP} \1|" -i drivers/firmware/efi/libstub/Makefile
+
+	# parallel pahole crashes on i686, do one job for now
+	vsed -i "s/\(\$(pahole-flags-y)\)/\1 --jobs=1/" -i scripts/Makefile.btf
+}
+
+do_configure() {
+	# If there's a file called <arch>-dotconfig, use it to
+	# configure the kernel; otherwise use arch defaults and all stuff
+	# as modules (allmodconfig).
+	local arch subarch
+
+	case "$XBPS_TARGET_MACHINE" in
+		x86_64*) arch=x86_64;;
+	esac
+
+	if [ -f ${FILESDIR}/${subarch:-$arch}-dotconfig-custom ]; then
+		msg_normal "Detected a custom .config file for your arch, using it.\n"
+		cp -f ${FILESDIR}/${subarch:-$arch}-dotconfig-custom .config
+	elif [ -f ${FILESDIR}/${subarch:-$arch}-dotconfig ]; then
+		msg_normal "Detected a .config file for your arch, using it.\n"
+		cp -f ${FILESDIR}/${subarch:-$arch}-dotconfig .config
+	fi
+	
+	# Apply LTO mode
+	if [ "$build_option_lto_full" ]; then
+		scripts/config --enable CONFIG_LTO_CLANG
+		scripts/config --enable CONFIG_LTO_CLANG_FULL
+		scripts/config --disable CONFIG_LTO_CLANG_THIN
+	elif [ "$build_option_lto_thin" ]; then
+		scripts/config --enable CONFIG_LTO_CLANG
+		scripts/config --enable CONFIG_LTO_CLANG_THIN
+		scripts/config --disable CONFIG_LTO_CLANG_FULL
+	else
+		scripts/config --disable CONFIG_LTO_CLANG
+		scripts/config --disable CONFIG_LTO_CLANG_FULL
+		scripts/config --disable CONFIG_LTO_CLANG_THIN
+	fi
+	# Enable CachyOS-specific config tweaks
+	scripts/config --enable CONFIG_CACHY
+
+	# Apply CPU scheduler selection
+	if [ "$build_option_bore" ]; then
+		scripts/config --enable CONFIG_SCHED_BORE
+	else
+		scripts/config --disable CONFIG_SCHED_BORE
+	fi
+
+	# Apply default governor selection
+	if [ "$build_option_performance" ]; then
+		scripts/config --disable CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
+		scripts/config --enable CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+	fi
+
+	# Apply HZ ticks rate
+	if [ "$build_option_hz100" ]; then
+		scripts/config --enable CONFIG_HZ_100
+		scripts/config --set-val CONFIG_HZ 100
+	elif [ "$build_option_hz250" ]; then
+		scripts/config --enable CONFIG_HZ_250
+		scripts/config --set-val CONFIG_HZ 250
+	elif [ "$build_option_hz300" ]; then
+		scripts/config --enable CONFIG_HZ_300
+		scripts/config --set-val CONFIG_HZ 300
+	elif [ "$build_option_hz500" ]; then
+		scripts/config --enable CONFIG_HZ_500
+		scripts/config --set-val CONFIG_HZ 500
+	elif [ "$build_option_hz600" ]; then
+		scripts/config --enable CONFIG_HZ_600
+		scripts/config --set-val CONFIG_HZ 600
+	elif [ "$build_option_hz750" ]; then
+		scripts/config --enable CONFIG_HZ_750
+		scripts/config --set-val CONFIG_HZ 750
+	elif [ "$build_option_hz800" ]; then
+		scripts/config --enable CONFIG_HZ_800
+		scripts/config --set-val CONFIG_HZ 800
+	elif [ "$build_option_hz1000" ]; then
+		scripts/config --enable CONFIG_HZ_1000
+		scripts/config --set-val CONFIG_HZ 1000
+	fi
+
+	# Apply tick rate mode
+	if [ "$build_option_tick_periodic" ]; then
+		scripts/config --enable CONFIG_HZ_PERIODIC
+	elif [ "$build_option_tick_idle" ]; then
+		scripts/config --enable CONFIG_NO_HZ_IDLE
+	elif [ "$build_option_tick_full" ]; then
+		scripts/config --enable CONFIG_NO_HZ_FULL
+		scripts/config --enable CONFIG_NO_HZ
+		scripts/config --enable CONFIG_NO_HZ_COMMON
+		scripts/config --enable CONFIG_CONTEXT_TRACKING
+		scripts/config --enable CONFIG_CONTEXT_TRACKING_USER
+	fi
+
+	# Apply compiler optimization level
+	if [ "$build_option_o3" ]; then
+		scripts/config --disable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE \
+			--enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
+	fi
+
+	# Disable kernel debug and tracing features
+	if [ "$build_option_disable_debug" ]; then
+		scripts/config --disable CONFIG_PAGE_POISONING
+		scripts/config --disable CONFIG_SLUB_DEBUG
+		scripts/config --disable CONFIG_SLUB_DEBUG_ON
+		scripts/config --disable CONFIG_DEBUG_MEMORY_INIT
+		scripts/config --disable CONFIG_SCHED_STACK_END_CHECK
+		scripts/config --disable CONFIG_KFENCE
+		scripts/config --disable CONFIG_SHRINKER_DEBUG
+		scripts/config --disable CONFIG_CMA_DEBUGFS
+		scripts/config --disable CONFIG_MODULE_DEBUGFS
+		scripts/config --disable CONFIG_BLK_DEBUG_FS
+		scripts/config --disable CONFIG_DEBUG_WX
+		scripts/config --disable CONFIG_PTDUMP
+		scripts/config --disable CONFIG_DEBUG_RODATA_TEST
+		scripts/config --disable CONFIG_DEBUG_BUGVERBOSE
+		scripts/config --disable CONFIG_ACPI_DEBUG
+		scripts/config --disable CONFIG_PM_DEBUG
+		scripts/config --disable CONFIG_PM_ADVANCED_DEBUG
+		scripts/config --disable CONFIG_PM_SLEEP_DEBUG
+		scripts/config --disable CONFIG_PM_TRACE_RTC
+		scripts/config --disable CONFIG_LATENCYTOP
+		scripts/config --disable CONFIG_LEDS_TRIGGER_CPU
+		scripts/config --disable CONFIG_LEDS_TRIGGER_GPIO
+		scripts/config --disable CONFIG_GENERIC_IRQ_DEBUGFS
+		scripts/config --disable CONFIG_PRINTK_INDEX
+		scripts/config --disable CONFIG_GENERIC_IRQ_STAT_SNAPSHOT
+		scripts/config --disable CONFIG_FTRACE
+		scripts/config --disable CONFIG_KPROBES
+		scripts/config --disable CONFIG_UPROBES
+		scripts/config --disable CONFIG_BPF_EVENTS
+		scripts/config --disable CONFIG_PROBE_EVENTS
+		scripts/config --disable CONFIG_TRACING
+		scripts/config --disable CONFIG_BLK_DEV_IO_TRACE
+		scripts/config -d 6LOWPAN_DEBUGFS
+		scripts/config -d AF_RXRPC_DEBUG
+		scripts/config -d AFS_DEBUG
+		scripts/config -d AFS_DEBUG_CURSOR
+		scripts/config -d ATA_VERBOSE_ERROR
+		scripts/config -d ATH10K_DEBUG
+		scripts/config -d ATH10K_DEBUGFS
+		scripts/config -d ATH12K_DEBUG
+		scripts/config -d ATH5K_DEBUG
+		scripts/config -d ATH5K_TRACER
+		scripts/config -d ATH6KL_DEBUG
+		scripts/config -d ATH9K_HTC_DEBUGFS
+		scripts/config -d ATM_ENI_DEBUG
+		scripts/config -d ATM_IA_DEBUG
+		scripts/config -d ATM_IDT77252_DEBUG
+		scripts/config -d BCACHE_DEBUG
+		scripts/config -d BCACHEFS_DEBUG
+		scripts/config -d BEFS_DEBUG
+		scripts/config -d BT_DEBUGFS
+		scripts/config -d CEPH_LIB_PRETTYDEBUG
+		scripts/config -d CFG80211_DEBUGFS
+		scripts/config -d CIFS_DEBUG
+		scripts/config -d CIFS_DEBUG2
+		scripts/config -d CIFS_DEBUG_DUMP_KEYS
+		scripts/config -d CROS_EC_DEBUGFS
+		scripts/config -d CRYPTO_DEV_AMLOGIC_GXL_DEBUG
+		scripts/config -d CRYPTO_DEV_CCP_DEBUGFS
+		scripts/config -d DEBUG_BOOT_PARAMS
+		scripts/config -d DEBUG_KMAP_LOCAL_FORCE_MAP
+		scripts/config -d DEBUG_RSEQ
+		scripts/config -d DEBUG_SHIRQ
+		scripts/config -d DLM_DEBUG
+		scripts/config -d DM_DEBUG_BLOCK_MANAGER_LOCKING
+		scripts/config -d DM_DEBUG_BLOCK_STACK_TRACING
+		scripts/config -d DM_UEVENT
+		scripts/config -d DRM_ACCEL_IVPU_DEBUG
+		scripts/config -d DRM_DEBUG_DP_MST_TOPOLOGY_REFS
+		scripts/config -d DRM_DEBUG_MODESET_LOCK
+		scripts/config -d DRM_DISPLAY_DP_TUNNEL_STATE_DEBUG
+		scripts/config -d DRM_I915_DEBUG
+		scripts/config -d DRM_I915_DEBUG_GUC
+		scripts/config -d DRM_I915_DEBUG_MMIO
+		scripts/config -d DRM_I915_DEBUG_VBLANK_EVADE
+		scripts/config -d DRM_I915_DEBUG_WAKEREF
+		scripts/config -d DRM_I915_SW_FENCE_DEBUG_OBJECTS
+		scripts/config -d DRM_XE_DEBUG
+		scripts/config -d DRM_XE_DEBUG_MEM
+		scripts/config -d DRM_XE_DEBUG_MEMIRQ
+		scripts/config -d DRM_XE_DEBUG_SRIOV
+		scripts/config -d DRM_XE_DEBUG_VM
+		scripts/config -d DVB_USB_DEBUG
+		scripts/config -d EARLY_PRINTK_DBGP
+		scripts/config -d EARLY_PRINTK_USB_XDBC
+		scripts/config -d EXT4_DEBUG
+		scripts/config -d HIST_TRIGGERS_DEBUG
+		scripts/config -d INFINIBAND_MTHCA_DEBUG
+		scripts/config -d IWLEGACY_DEBUG
+		scripts/config -d IWLWIFI_DEBUG
+		scripts/config -d JFS_DEBUG
+		scripts/config -d LDM_DEBUG
+		scripts/config -d LIBERTAS_THINFIRM_DEBUG
+		scripts/config -d MAC80211_DEBUGFS
+		scripts/config -d NETFS_DEBUG
+		scripts/config -d NFS_DEBUG
+		scripts/config -d NVME_TARGET_DEBUGFS
+		scripts/config -d NVME_VERBOSE_ERRORS
+		scripts/config -d OCFS2_DEBUG_FS
+		scripts/config -d OVMF_DEBUG_LOG
+		scripts/config -d PNP_DEBUG_MESSAGES
+		scripts/config -d QUOTA_DEBUG
+		scripts/config -d RTLWIFI_DEBUG
+		scripts/config -d RTW88_DEBUG
+		scripts/config -d RTW88_DEBUGFS
+		scripts/config -d RTW89_DEBUGFS
+		scripts/config -d RTW89_DEBUGMSG
+		scripts/config -d SMS_SIANO_DEBUGFS
+		scripts/config -d SND_SOC_SOF_DEBUG
+		scripts/config -d SUNRPC_DEBUG
+		scripts/config -d UFS_DEBUG
+		scripts/config -d USB_DWC2_DEBUG
+		scripts/config -d VFIO_DEBUGFS
+		scripts/config -d VIRTIO_DEBUG
+		scripts/config -d VISL_DEBUGFS
+		scripts/config -d WCN36XX_DEBUGFS
+		scripts/config -d WWAN_DEBUGFS
+		scripts/config -d XEN_DEBUG_FS
+		scripts/config -d ZSMALLOC_STAT
+		scripts/config -d GDB_SCRIPTS
+		scripts/config -d FUNCTION_PROFILER
+		scripts/config -d FTRACE_RECORD_RECURSION
+		scripts/config -d FTRACE_SORT_STARTUP_TEST
+		scripts/config -d FTRACE_VALIDATE_RCU_IS_WATCHING
+		scripts/config -d HWLAT_TRACER
+		scripts/config -d IRQSOFF_TRACER
+		scripts/config -d KPROBE_EVENTS_ON_NOTRACE
+		scripts/config -d LOCK_EVENT_COUNTS
+		scripts/config -d MMIOTRACE
+		scripts/config -d MMIOTRACE_TEST
+		scripts/config -d OSNOISE_TRACER
+		scripts/config -d PM_DEVFREQ_EVENT
+		scripts/config -d PREEMPT_TRACER
+		scripts/config -d PSTORE_FTRACE
+		scripts/config -d TIMERLAT_TRACER
+		scripts/config -d SYNTH_EVENTS
+		scripts/config -d USER_EVENTS
+		scripts/config -d HIST_TRIGGERS
+		scripts/config -d TRACE_GPU_MEM
+		scripts/config -d EPROBE_EVENTS
+	fi
+
+	# Disable security hardening
+	if [ "$build_option_disable_security" ]; then
+		scripts/config --disable CONFIG_INIT_ON_ALLOC_DEFAULT_ON
+		scripts/config --disable CONFIG_INIT_STACK_ALL_ZERO
+		scripts/config --enable CONFIG_INIT_STACK_NONE
+		scripts/config --disable CONFIG_SLAB_FREELIST_RANDOM
+		scripts/config --disable CONFIG_SLAB_FREELIST_HARDENED
+		scripts/config --disable CONFIG_SHUFFLE_PAGE_ALLOCATOR
+		scripts/config --disable CONFIG_RANDOMIZE_KSTACK_OFFSET
+		scripts/config --disable CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT
+		scripts/config --disable CONFIG_STACKPROTECTOR_STRONG
+		scripts/config --disable CONFIG_STACKPROTECTOR
+		scripts/config --disable CONFIG_SECURITY_APPARMOR
+		scripts/config --disable CONFIG_SECURITY_IPE
+		scripts/config --disable CONFIG_KSTACK_ERASE
+	fi
+
+	# Memory optimizations
+	if [ "$build_option_memory_opt" ]; then
+		scripts/config --disable CONFIG_IDLE_PAGE_TRACKING
+		scripts/config --disable CONFIG_PAGE_IDLE_FLAG
+		scripts/config --disable CONFIG_MEM_SOFT_DIRTY
+		scripts/config --disable CONFIG_ANON_VMA_NAME
+		scripts/config --disable CONFIG_USERFAULTFD
+		scripts/config --disable CONFIG_SECRETMEM
+		scripts/config --disable CONFIG_DAMON
+		scripts/config --disable CONFIG_HWPOISON_INJECT
+		scripts/config --disable CONFIG_READ_ONLY_THP_FOR_FS
+		scripts/config --disable CONFIG_HMM_MIRROR
+		scripts/config --disable CONFIG_DEVICE_PRIVATE
+		scripts/config --disable CONFIG_ZONE_DEVICE
+		scripts/config --disable CONFIG_KSM
+		scripts/config --disable CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS
+		scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE_MADVISE
+		scripts/config -d BALLOON_COMPACTION
+	fi
+
+	# IO and network tweaks
+	if [ "$build_option_io_net_opt" ]; then
+		scripts/config --disable CONFIG_BLK_CGROUP_IOCOST
+		scripts/config --disable CONFIG_BLK_CGROUP_IOLATENCY
+		scripts/config --disable CONFIG_BLK_RQ_ALLOC_TIME
+		scripts/config --disable CONFIG_BLK_CGROUP_IOPRIO
+		scripts/config --disable CONFIG_NET_RX_BUSY_POLL
+		scripts/config --disable CONFIG_NET_FLOW_LIMIT
+	fi
+
+	# CPU optimizations
+	if [ "$build_option_cpu_opt" ]; then
+		scripts/config --disable CONFIG_SCHED_CORE
+		scripts/config --disable CONFIG_UCLAMP_TASK
+		scripts/config --disable CONFIG_UCLAMP_TASK_GROUP
+		scripts/config --disable CONFIG_SCHED_AUTOGROUP
+		scripts/config --disable CONFIG_NUMA_BALANCING_DEFAULT_ENABLED
+		scripts/config --set-val RCU_FANOUT 32
+		scripts/config -d CPUMASK_OFFSTACK -d MAXSMP
+		scripts/config --set-val NR_CPUS_RANGE_BEGIN 32
+		scripts/config --set-val NR_CPUS_RANGE_END 32
+		scripts/config --set-val NR_CPUS_DEFAULT 32
+		scripts/config --set-val NR_CPUS 32
+		scripts/config --set-val NODES_SHIFT 10
+	fi
+
+	# Storage and filesystems
+	if [ "$build_option_storage_fs" ]; then
+		scripts/config -e BLK_DEV_DM -e BLK_DEV_LOOP -e BLK_DEV_NVME
+		scripts/config -e BLK_DEV_MD -d MD_AUTODETECT -d DM_INIT
+		scripts/config -d MSDOS_FS -e FAT_FS -e VFAT_FS
+	fi
+
+	# Miscellaneous tweaks and legacy removal
+	if [ "$build_option_misc_opt" ]; then
+		scripts/config --set-val LOG_BUF_SHIFT 16
+		scripts/config --set-val KVM_MAX_NR_VCPUS 128
+		scripts/config -d MEMORY_HOTPLUG
+		scripts/config -d POSIX_AUX_CLOCKS
+		scripts/config -d SYMBOLIC_ERRNAME
+		scripts/config -d BOOTTIME_TRACING -d BOOT_CONFIG
+		scripts/config -d CFG80211_DEFAULT_PS
+		scripts/config -d COREDUMP
+		scripts/config -d EARLY_PRINTK
+		scripts/config -d HIBERNATION
+		scripts/config -d KEXEC_HANDOVER
+		scripts/config -d X86_CHECK_BIOS_CORRUPTION
+		scripts/config -d X86_VSYSCALL_EMULATION
+		scripts/config -d DETECT_HUNG_TASK
+		scripts/config -d HARDLOCKUP_DETECTOR
+		scripts/config -d SOFTLOCKUP_DETECTOR_INTR_STORM
+		scripts/config -d SOFTLOCKUP_DETECTOR
+		scripts/config -d SND_UTIMER
+		scripts/config -d WATCH_QUEUE
+		scripts/config -d PCIEASPM_DEFAULT -e PCIEASPM_PERFORMANCE
+		scripts/config -d WQ_POWER_EFFICIENT_DEFAULT
+		scripts/config -d X86_BOOTPARAM_MEMORY_CORRUPTION_CHECK
+		scripts/config -d X86_BUS_LOCK_DETECT
+		scripts/config -d X86_CPA_STATISTICS
+		scripts/config -d X86_DECODER_SELFTEST
+		scripts/config -d LEGACY_VSYSCALL_XONLY -e LEGACY_VSYSCALL_NONE
+		scripts/config -d UID16 -d X86_16BIT -d MODIFY_LDT_SYSCALL
+		scripts/config -d SYSFS_SYSCALL
+		scripts/config -d KEXEC -d KEXEC_FILE -d CRASH_DUMP
+		scripts/config -d IOMMU_DEFAULT_DMA_LAZY -e IOMMU_DEFAULT_PASSTHROUGH
+	fi
+
+	# Disable virtualization guest
+	if [ "$build_option_disable_virt" ]; then
+		scripts/config --disable CONFIG_KVM_GUEST
+		scripts/config --disable CONFIG_XEN
+		scripts/config --disable CONFIG_JAILHOUSE_GUEST
+		scripts/config --disable CONFIG_ACRN_GUEST
+		scripts/config --disable CONFIG_BHYVE_GUEST
+		scripts/config --disable CONFIG_INTEL_TDX_GUEST
+		scripts/config --disable CONFIG_BALLOON
+		scripts/config --disable CONFIG_BALLOON_MIGRATION
+		scripts/config --disable CONFIG_PAGE_REPORTING
+		scripts/config --disable CONFIG_BALLOON_COMPACTION
+	fi
+
+	# Disable cgroups features
+	if [ "$build_option_disable_cgroups" ]; then
+		scripts/config --disable CONFIG_CGROUP_RDMA
+		scripts/config --disable CONFIG_CGROUP_DMEM
+		scripts/config --disable CONFIG_CGROUP_MISC
+		scripts/config --disable CONFIG_CGROUP_PERF
+		scripts/config --disable CONFIG_CGROUP_CPUACCT
+		scripts/config --disable CONFIG_CGROUP_NET_PRIO
+		scripts/config --disable CONFIG_CGROUP_NET_CLASSID
+		scripts/config --disable CONFIG_CGROUP_HUGETLB
+	fi
+
+	# Apply x86-64 v3 ISA level
+	if [ "$build_option_x86_64_v3" ]; then
+		scripts/config --set-val CONFIG_X86_64_VERSION 3
+	fi
+
+	# Apply native CPU microarchitecture
+	if [ "$build_option_native_cpu" ]; then
+		scripts/config --disable CONFIG_GENERIC_CPU
+		scripts/config --enable CONFIG_X86_NATIVE_CPU
+	fi
+
+	# Disable paravirt
+	if [ "$build_option_disable_paravirt" ]; then
+		scripts/config --disable CONFIG_PARAVIRT
+		scripts/config --disable CONFIG_PARAVIRT_XXL
+		scripts/config --disable CONFIG_PARAVIRT_SPINLOCKS
+		scripts/config --disable CONFIG_PARAVIRT_TIME_ACCOUNTING
+		scripts/config --disable CONFIG_PARAVIRT_CLOCK
+	fi
+
+	# Let mv-debug handle module compression
+	scripts/config --disable CONFIG_MODULE_COMPRESS_ALL
+
+	make ${_toolchain_args} ${makejobs} ARCH=$arch ${_cross} ${_make_flags} oldconfig
+
+	# Always use our revision to CONFIG_LOCALVERSION to match our pkg version.
+	sed -i -e "s|^\(CONFIG_LOCALVERSION=\).*|\1\"-tcachy_${revision}\"|" .config
+}
+
+do_build() {
+	local arch _args
+
+	case "$XBPS_TARGET_MACHINE" in
+		x86_64*) _args="bzImage modules"; arch=x86_64;;
+	esac
+	export LDFLAGS=
+	export KCFLAGS="-ffile-prefix-map=$wrksrc=."
+	make ${_toolchain_args} ARCH=$arch ${_cross} ${_make_flags} ${makejobs} prepare
+	make ${_toolchain_args} ARCH=$arch ${_cross} ${_make_flags} ${makejobs} ${_args}
+}
+
+do_install() {
+	local arch subarch _args hdrdest
+
+	case "$XBPS_TARGET_MACHINE" in
+		x86_64*) arch=x86; subarch=x86_64;;
+	esac
+
+	# Run depmod after compressing modules - makes depmod.sh a noop
+	sed -i '2iexit 0' scripts/depmod.sh
+	vmkdir usr/lib
+	ln -sf usr/lib/ ${DESTDIR}
+
+	# Install kernel, firmware and modules
+	make ${_toolchain_args} ${makejobs} ARCH=${subarch:-$arch} INSTALL_MOD_PATH=${DESTDIR} ${_cross} ${_make_flags} modules_install
+
+	hdrdest=${DESTDIR}/usr/src/kernel-headers-${_kernver}
+
+	vinstall .config 644 boot config-${_kernver}
+	vinstall System.map 644 boot System.map-${_kernver}
+
+	case "$arch" in
+		x86)
+			vinstall arch/x86/boot/bzImage 644 boot vmlinuz-${_kernver}
+			;;
+	esac
+
+	# Switch to /usr.
+	vmkdir usr
+
+	cd ${DESTDIR}/usr/lib/modules/${_kernver}
+	rm -f source build
+	ln -sf ../../../src/kernel-headers-${_kernver} build
+
+	cd ${wrksrc}
+	# Install required headers to build external modules
+	install -Dm644 Makefile ${hdrdest}/Makefile
+	install -Dm644 Kbuild ${hdrdest}/Kbuild
+	install -Dm644 kernel/Makefile ${hdrdest}/kernel/Makefile
+	install -Dm644 .config ${hdrdest}/.config
+	for file in $(find . -name Kconfig\*); do
+		mkdir -p ${hdrdest}/$(dirname $file)
+		install -Dm644 $file ${hdrdest}/${file}
+	done
+	for file in $(find arch/${subarch:-$arch} scripts -name module.lds -o -name Kbuild.platforms -o -name Platform); do
+		mkdir -p ${hdrdest}/$(dirname $file)
+		install -Dm644 $file ${hdrdest}/${file}
+	done
+	mkdir -p ${hdrdest}/include
+	# Remove firmware stuff provided by the "linux-firmware" pkg.
+	rm -rf ${DESTDIR}/usr/lib/firmware
+
+	for i in acpi asm-generic clocksource config crypto drm generated linux vdso \
+		math-emu media net pcmcia scsi sound trace uapi video xen dt-bindings hyperv keys; do
+		if [ -d include/$i ]; then
+			cp -a include/$i ${hdrdest}/include
+		fi
+	done
+
+	cd ${wrksrc}
+	mkdir -p ${hdrdest}/arch/${arch}
+	cp -a arch/${arch}/include ${hdrdest}/arch/${arch}
+
+	# needed for mv-debug
+	cp scripts/sign-file "${XBPS_WRAPPERDIR}"
+
+	# Remove helper binaries built for host,
+	# if generated files from the scripts/ directory need to be included,
+	# they need to be copied to ${hdrdest} before this step
+	if [ "$CROSS_BUILD" ]; then
+		make ${_toolchain_args} ${makejobs} ARCH=${subarch:-$arch} ${_cross} ${_make_flags} _mrproper_scripts
+		# remove host specific objects as well
+		find scripts -name '*.o' -delete
+	fi
+
+	# Copy files necessary for later builds, like nvidia and vmware
+	cp Module.symvers ${hdrdest}
+	cp -a scripts ${hdrdest}
+	mkdir -p ${hdrdest}/security/selinux
+	cp -a security/selinux/include ${hdrdest}/security/selinux
+	mkdir -p ${hdrdest}/tools/include
+	cp -a tools/include/tools ${hdrdest}/tools/include
+	if [ -d "arch/${arch}/tools" ]; then
+		cp -a "arch/${arch}/tools" "${hdrdest}/arch/${arch}"
+	fi
+	cp -a kernel/time/timeconst.bc "${hdrdest}/kernel/time"
+	cp -a kernel/bounds.c "${hdrdest}/kernel"
+	mkdir -p "${hdrdest}/arch/x86/entry/syscalls"
+	cp -a arch/x86/entry/syscalls/syscall_32.tbl "${hdrdest}/arch/x86/entry/syscalls"
+
+	mkdir -p ${hdrdest}/arch/${arch}/kernel
+	cp arch/${arch}/Makefile ${hdrdest}/arch/${arch}
+	if [ "$subarch" = "i386" ]; then
+		mkdir -p ${hdrdest}/arch/x86
+		cp arch/x86/Makefile_32.cpu ${hdrdest}/arch/x86
+	fi
+	if [ "$arch" = "x86" ]; then
+		mkdir -p ${hdrdest}/arch/x86/kernel
+		cp arch/x86/kernel/asm-offsets.s ${hdrdest}/arch/x86/kernel
+	fi
+
+	# add headers for lirc package
+	# pci
+	for i in bt8xx cx88 saa7134; do
+		mkdir -p ${hdrdest}/drivers/media/pci/${i}
+		cp -a drivers/media/pci/${i}/*.h ${hdrdest}/drivers/media/pci/${i}
+	done
+	# usb
+	for i in em28xx pwc; do
+		mkdir -p ${hdrdest}/drivers/media/usb/${i}
+		cp -a drivers/media/usb/${i}/*.h ${hdrdest}/drivers/media/usb/${i}
+	done
+	# i2c
+	mkdir -p ${hdrdest}/drivers/media/i2c
+	cp drivers/media/i2c/*.h ${hdrdest}/drivers/media/i2c
+	for i in cx25840; do
+		mkdir -p ${hdrdest}/drivers/media/i2c/${i}
+		cp -a drivers/media/i2c/${i}/*.h ${hdrdest}/drivers/media/i2c/${i}
+	done
+
+	# Add md headers
+	mkdir -p ${hdrdest}/drivers/md
+	cp drivers/md/*.h ${hdrdest}/drivers/md
+
+	# Add inotify.h
+	mkdir -p ${hdrdest}/include/linux
+	cp include/linux/inotify.h ${hdrdest}/include/linux
+
+	# Add wireless headers
+	mkdir -p ${hdrdest}/net/mac80211/
+	cp net/mac80211/*.h ${hdrdest}/net/mac80211
+
+	# add dvb headers for http://mcentral.de/hg/~mrec/em28xx-new
+	mkdir -p ${hdrdest}/drivers/media/dvb-frontends
+	cp drivers/media/dvb-frontends/lgdt330x.h \
+		${hdrdest}/drivers/media/dvb-frontends/
+	cp drivers/media/i2c/msp3400-driver.h ${hdrdest}/drivers/media/i2c/
+
+	# add dvb headers
+	mkdir -p ${hdrdest}/drivers/media/usb/dvb-usb
+	cp drivers/media/usb/dvb-usb/*.h ${hdrdest}/drivers/media/usb/dvb-usb/
+	mkdir -p ${hdrdest}/drivers/media/dvb-frontends
+	cp drivers/media/dvb-frontends/*.h ${hdrdest}/drivers/media/dvb-frontends/
+	mkdir -p ${hdrdest}/drivers/media/tuners
+	cp drivers/media/tuners/*.h ${hdrdest}/drivers/media/tuners/
+
+	# Add xfs and shmem for aufs building
+	mkdir -p ${hdrdest}/fs/xfs/libxfs
+	mkdir -p ${hdrdest}/mm
+	cp fs/xfs/libxfs/xfs_sb.h ${hdrdest}/fs/xfs/libxfs/xfs_sb.h
+
+	# Add objtool binary, needed to build external modules with dkms
+	case "$XBPS_TARGET_MACHINE" in
+		x86_64*)
+			mkdir -p ${hdrdest}/tools/objtool
+			cp tools/objtool/objtool ${hdrdest}/tools/objtool
+			;;
+	esac
+
+	# Extract debugging symbols and compress modules
+	msg_normal "$pkgver: extracting debug info and compressing modules, please wait...\n"
+	install -Dm644 vmlinux ${DESTDIR}/usr/lib/debug/boot/vmlinux-${_kernver}
+	(
+	cd ${DESTDIR}
+	export DESTDIR
+	export SIGN_FILE="${XBPS_WRAPPERDIR}/sign-file sha512 ${wrksrc}/certs/signing_key.pem ${wrksrc}/certs/signing_key.x509"
+	find ./ -name '*.ko' -print0 | \
+		xargs -0r -n1 -P ${XBPS_MAKEJOBS} ${FILESDIR}/mv-debug
+	)
+	# ... and run depmod again.
+	depmod -b ${DESTDIR}/usr -F System.map ${_kernver}
+	rm -f ${DESTDIR}/lib
+}
+
+linux7.2-tcachy-headers_package() {
+	preserve=yes
+	nostrip=yes
+	noshlibprovides=yes
+	short_desc+=" - source headers for 3rd party modules"
+	pkg_install() {
+		vmove usr/src
+		vmove usr/lib/modules/${_kernver}/build
+	}
+}
+
+linux7.2-tcachy-dbg_package() {
+	preserve=yes
+	nostrip=yes
+	noverifyrdeps=yes
+	noshlibprovides=yes
+	repository=debug
+	short_desc+=" - debugging symbols"
+	pkg_install() {
+		vmove usr/lib/debug
+		vmove "boot/System.map-${_kernver}"
+	}
+}
