@@ -1,6 +1,6 @@
 # Template file for 'mesa-pure'
 pkgname=mesa-pure
-version=26.2.1
+version=26.2.2
 revision=1
 build_style=meson
 short_desc="Purely personal Mesa build (radeonsi + RADV, Clang, no LLVM)"
@@ -8,7 +8,7 @@ maintainer="Terromur <terromuroz@proton.me>"
 license="MIT, BSD-3-Clause, SGI-B-2.0"
 homepage="https://www.mesa3d.org/"
 distfiles="https://archive.mesa3d.org/mesa-${version}.tar.xz"
-checksum="c47e81bddc4760360a41ac3c5acec38acb81f9d750ecef47e7f3adc7021a4442"
+checksum="eeb29ca7e56cfaa8e8a79538dcf834e3b18e501c31bef5145e959ea437cc4216"
 hostmakedepends="meson ninja pkg-config python3-Mako python3-packaging python3-ply python3-yaml cbindgen glslang wayland-protocols xorgproto byacc flex cmake"
 makedepends="expat-devel libdrm-devel libelf libglvnd-devel libpng-devel libva-devel libX11-devel libxcb-devel libXdamage-devel libXext-devel libXfixes-devel libXrandr-devel libxshmfence-devel libXxf86vm-devel libxml2-devel libdisplay-info-devel elfutils-devel lm_sensors vulkan-loader-devel wayland-devel xcb-util-keysyms-devel zlib-devel zstd valgrind-devel clang22 lld22 lua54-devel"
 depends="expat libdrm libelf libglvnd libX11 libxcb libXdamage libXext libXfixes libxshmfence libXxf86vm lm_sensors python3 vulkan-loader wayland xcb-util-keysyms zlib zstd"
