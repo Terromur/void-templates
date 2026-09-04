@@ -1,6 +1,6 @@
 # Template file for 'fagram-bin'
 pkgname=fagram-bin
-version=2.5.1
+version=2.5.2
 revision=1
 archs="x86_64"
 short_desc="Telegram Desktop based messenger with Feature-rich modifications"
@@ -8,7 +8,7 @@ maintainer="Terromur <terromuroz@proton.me>"
 license="GPL-3.0-or-later"
 homepage="https://github.com/fagramdesktop/fadesktop"
 distfiles="https://github.com/fagramdesktop/fadesktop/releases/download/${version}/fagram-${version}.tar.zst"
-checksum="01bc9ff3ad9e8a2cd5a8012a97cb7adda16b1f4b2a406a43d7f03b7cbea5360e"
+checksum="b342266a69d03505ed3a431bec603f4f6251fe1c2227acef98805440078fb2fc"
 hostmakedepends="chrpath"
 depends="abseil-cpp ada ffmpeg glib hicolor-icon-theme hunspell jemalloc kcoreaddons libavif libdispatch libheif libjxl libstdc++ libXcomposite libXdamage libXrandr libXtst lz4 minizip libopenal openh264 openssl pipewire protobuf qt6-imageformats qt6-svg qt6-wayland rnnoise xxHash zlib"
 provides="fagram-${version}_${revision}"
