@@ -1,0 +1,34 @@
+From e624f29d8621d9f377edc32a431f940744743dec Mon Sep 17 00:00:00 2001
+From: Darrkop <300437243+Darrkop@users.noreply.github.com>
+Date: Mon, 6 Jul 2026 12:59:43 +0200
+Subject: [PATCH] fix(image_processor): correct rotation direction to match
+ button intent
+
+The right-rotate button increments rotation by 90 (clockwise intent),
+but ImageProcessor._apply_rotation mapped it to Image.ROTATE_90, which
+is Pillow's counter-clockwise 90 degree transpose. Likewise the left
+button's -90 mapped to ROTATE_270 (clockwise). Swap the two cases so
+rotating right actually rotates clockwise and rotating left rotates
+counter-clockwise.
+---
+ gradia/graphics/image_processor.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/gradia/graphics/image_processor.py b/gradia/graphics/image_processor.py
+index f882147..fa73fee 100644
+--- a/gradia/graphics/image_processor.py
++++ b/gradia/graphics/image_processor.py
+@@ -128,11 +128,11 @@ def _apply_rotation(self, image: Image.Image) -> Image.Image:
+         if self.rotation == 0:
+             return image
+         elif self.rotation == 90:
+-            return image.transpose(Image.ROTATE_90)
++            return image.transpose(Image.ROTATE_270)
+         elif self.rotation == 180:
+             return image.transpose(Image.ROTATE_180)
+         elif self.rotation == 270:
+-            return image.transpose(Image.ROTATE_270)
++            return image.transpose(Image.ROTATE_90)
+         else:
+             return image
+ 

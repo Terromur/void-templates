@@ -1,0 +1,90 @@
+From c142d999d174b49d00b1108f13f0831f8f448ca7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ball=C3=B3=20Gy=C3=B6rgy?= <ballogyor@gmail.com>
+Date: Wed, 26 Aug 2026 02:49:16 +0200
+Subject: [PATCH] Move libgradient_gen.so under /lib
+
+According to the Filesystem Hierarchy Standard, only architecture-
+independent data should be installed under /share.
+
+Old path: $prefix/share/gradia/gradia/libgradient_gen.so
+New path: $prefix/lib/gradia/libgradient_gen.so
+---
+ gradia/constants.in         | 1 +
+ gradia/graphics/gradient.py | 5 +++--
+ gradia/meson.build          | 2 +-
+ meson.build                 | 2 ++
+ 4 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/gradia/constants.in b/gradia/constants.in
+index 838d58e5..2d19f66f 100644
+--- a/gradia/constants.in
++++ b/gradia/constants.in
+@@ -16,6 +16,7 @@
+ # SPDX-License-Identifier: GPL-3.0-or-later
+ 
+ rootdir          = '@ROOT_PATH@'
++libdir           = '@LIB_DIR@'
+ datadir          = '@DATA_DIR@'
+ pkgdatadir       = '@PKGDATA_DIR@'
+ localedir        = '@LOCALE_DIR@'
+diff --git a/gradia/graphics/gradient.py b/gradia/graphics/gradient.py
+index 69f08779..eedc16f5 100644
+--- a/gradia/graphics/gradient.py
++++ b/gradia/graphics/gradient.py
+@@ -18,11 +18,13 @@
+ from dataclasses import dataclass, field
+ from ctypes import CDLL, POINTER, Structure, c_double, c_int, c_uint8
+ import json
++import os
+ 
+ from PIL import Image
+ 
+ from gradia.graphics.background import Background
+ from gradia.utils.colors import parse_rgb_string
++from gradia.constants import libdir
+ 
+ 
+ Step = tuple[float, str]  # (position, "rgb(r,g,b)")
+@@ -98,8 +100,7 @@ def _load_c_lib(cls) -> None:
+         if cls._c_lib is not None:
+             return
+ 
+-        from importlib.resources import files
+-        gradia_path = files("gradia").joinpath("libgradient_gen.so")
++        gradia_path = os.path.join(libdir, "libgradient_gen.so")
+         cls._c_lib = CDLL(str(gradia_path))
+         cls._c_lib.generate_gradient.argtypes = [
+             POINTER(c_uint8), c_int, c_int,
+diff --git a/gradia/meson.build b/gradia/meson.build
+index d612242d..4a290c2c 100644
+--- a/gradia/meson.build
++++ b/gradia/meson.build
+@@ -3,7 +3,7 @@ shared_library(
+   'gradient_gen',
+   'graphics/gradient_gen.c',
+   install: true,
+-  install_dir: MODULE_DIR,
++  install_dir: LIB_DIR,
+   install_rpath: '$ORIGIN',
+   link_args: ['-lm'],
+ )
+diff --git a/meson.build b/meson.build
+index a222c561..801b3331 100644
+--- a/meson.build
++++ b/meson.build
+@@ -22,6 +22,7 @@ PROJECT_RDNN_NAME = 'be.alexandervanhee.gradia'
+ ROOT_PATH = '/be/alexandervanhee/gradia'
+ PKGDATA_DIR = join_paths(get_option('prefix'), get_option('datadir'), meson.project_name())
+ MODULE_DIR =  join_paths(PKGDATA_DIR, 'gradia')
++LIB_DIR = join_paths(get_option('prefix'), get_option('libdir'), meson.project_name())
+ 
+ # Set APPLICATION_ID
+ APPLICATION_ID =  PROJECT_RDNN_NAME
+@@ -72,6 +73,7 @@ conf = configuration_data()
+ conf.set('APP_ID', APPLICATION_ID)
+ conf.set('ROOT_PATH', ROOT_PATH)
+ conf.set('PKGDATA_DIR', PKGDATA_DIR)
++conf.set('LIB_DIR', LIB_DIR)
+ conf.set('DATA_DIR', join_paths(get_option('prefix'), get_option('datadir')))
+ conf.set('LOCALE_DIR', join_paths(get_option('prefix'), get_option('localedir')))
+ conf.set('PYTHON', PY_INSTALLDIR.full_path())
