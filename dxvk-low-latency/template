@@ -24,13 +24,13 @@ do_fetch() {
 }
 do_configure() {
     cd ${wrksrc}
-    local base_cflags="-march=native -mtune=native -O3 -mno-avx -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0"
+    local base_cflags="-march=native -mtune=native -O3 -mno-avx -flto=auto -flto-partition=one -fdevirtualize-at-ltrans -funsafe-math-optimizations -fomit-frame-pointer -fno-ident -fno-stack-protector -fno-math-errno -fno-trapping-math -fno-semantic-interposition -fcf-protection=none -fipa-pta -mharden-sls=none -D_FORTIFY_SOURCE=0 -ffunction-sections -fdata-sections"
     local base_cxxflags="$base_cflags"
     local cflags_64="$base_cflags -D_FILE_OFFSET_BITS=64"
     local cxxflags_64="$base_cxxflags -D_FILE_OFFSET_BITS=64 -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
     local cflags_32="$base_cflags"
     local cxxflags_32="$base_cxxflags -DNDEBUG -Wp,-U_GLIBCXX_ASSERTIONS"
-    local ldflags="-Wl,-O3 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,--file-alignment=4096"
+    local ldflags="-Wl,-O3 -Wl,-Bsymbolic-functions,--as-needed,--strip-all -flto=auto -Wl,--file-alignment=4096 -Wl,--gc-sections"
 
     sed -i build-win64-gcc.txt \
         -e "s|@CARGS@|'${cflags_64// /\',\'}'|g" \
