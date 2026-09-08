@@ -1,18 +1,18 @@
 # Template file for 'linux7.2-tcachy'
 pkgname=linux7.2-tcachy
-version=7.2.3
+version=7.2.4
 revision=1
 short_desc="Linux kernel and modules (${version%.*} series) with CachyOS/tkg/clear/cachymod patches with clang"
 maintainer="Terromur <terromuroz@proton.me>"
 license="GPL-2.0-only"
 homepage="https://github.com/CachyOS/linux-cachyos"
 distfiles="https://github.com/CachyOS/linux/releases/download/cachyos-${version}-1/cachyos-${version}-1.tar.gz"
-checksum=b69413e1941bc9f08d0f5bdf576b4e31ebd948a235d8b8a24a81ba7583e36d77
+checksum=40099115ec06ab2a780e61e9844b485712d497b4082b1e4a216fbec362c5360f
 python_version=3
 
-build_options="bore o3 performance hz100 hz250 hz300 hz500 hz600 hz750 hz800 hz1000 tick_periodic tick_idle tick_full native_cpu disable_paravirt disable_debug disable_security memory_opt io_net_opt cpu_opt storage_fs misc_opt disable_virt disable_cgroups x86_64_v3 lto_full lto_thin"
+build_options="bore o3 performance hz100 hz250 hz300 hz500 hz600 hz750 hz800 hz1000 tick_periodic tick_idle tick_full native_cpu disable_paravirt disable_debug disable_security io_net_opt cpu_opt storage_fs misc_opt disable_virt disable_cgroups x86_64_v3 lto_full lto_thin"
 
-build_options_default="o3 tick_full native_cpu memory_opt io_net_opt cpu_opt storage_fs misc_opt lto_thin"
+build_options_default="o3 tick_full native_cpu io_net_opt cpu_opt storage_fs misc_opt lto_thin"
 
 desc_option_bore="Enable BORE CPU scheduler"
 desc_option_o3="Enable KBUILD_CFLAGS -O3 compiler optimization"
@@ -31,7 +31,6 @@ desc_option_native_cpu="Build for native CPU (-march=native)"
 desc_option_disable_paravirt="Disable paravirt"
 desc_option_disable_debug="Disable kernel debug and tracing features"
 desc_option_disable_security="Disable security hardening"
-desc_option_memory_opt="Disable memory tracking, HMM, KSM, THP always and other memory overhead"
 desc_option_io_net_opt="Disable block layer accounting and network busy polling"
 desc_option_cpu_opt="Disable CPU-hungry features, tune RCU and NR_CPUS"
 desc_option_storage_fs="Enable storage and FAT filesystems as built-in"
@@ -342,26 +341,6 @@ do_configure() {
 		scripts/config --disable CONFIG_SECURITY_APPARMOR
 		scripts/config --disable CONFIG_SECURITY_IPE
 		scripts/config --disable CONFIG_KSTACK_ERASE
-	fi
-
-	# Memory optimizations
-	if [ "$build_option_memory_opt" ]; then
-		scripts/config --disable CONFIG_IDLE_PAGE_TRACKING
-		scripts/config --disable CONFIG_PAGE_IDLE_FLAG
-		scripts/config --disable CONFIG_MEM_SOFT_DIRTY
-		scripts/config --disable CONFIG_ANON_VMA_NAME
-		scripts/config --disable CONFIG_USERFAULTFD
-		scripts/config --disable CONFIG_SECRETMEM
-		scripts/config --disable CONFIG_DAMON
-		scripts/config --disable CONFIG_HWPOISON_INJECT
-		scripts/config --disable CONFIG_READ_ONLY_THP_FOR_FS
-		scripts/config --disable CONFIG_HMM_MIRROR
-		scripts/config --disable CONFIG_DEVICE_PRIVATE
-		scripts/config --disable CONFIG_ZONE_DEVICE
-		scripts/config --disable CONFIG_KSM
-		scripts/config --disable CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS
-		scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE_MADVISE
-		scripts/config -d BALLOON_COMPACTION
 	fi
 
 	# IO and network tweaks
