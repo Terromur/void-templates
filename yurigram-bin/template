@@ -1,29 +1,32 @@
-# Template file for 'flclashx-bin'
-pkgname=flclashx-bin
-version=0.4.2
-revision=1
+# Template file for 'yurigram-bin'
+pkgname=yurigram-bin
+version=7.2.7
+revision=2
 archs="x86_64"
-short_desc="Fork of FlClash, a multi-platform ClashMeta proxy client"
-maintainer="Terromur <terromuroz@proton.me>"
-license="GPL-3.0-or-later"
-homepage="https://github.com/pluralplay/FlClashX"
-provides="flclashx-${version}_${revision}"
-conflicts="flclashx>=0 flclashx-git flclashx-git-debug flclash-bin flclash>=0"
-depends="libayatana-appindicator libkeybinder3"
+short_desc="Yet another unofficial tdesktop client"
+maintainer="Revincx <revincx233@gmail.com>"
+license="GPL-3.0-only"
+homepage="https://github.com/Revincx/Yurigram"
+provides="yurigram-${version}_${revision}"
+replaces="yukigram-rua>=0 yukigram-rua-bin>=0"
+conflicts="yurigram>=0 yukigram-rua>=0 yukigram-rua-bin>=0"
+depends="fontconfig freetype glib glibc hicolor-icon-theme libX11"
+distfiles="https://github.com/Revincx/Yurigram/releases/download/${version}-${revision}/yurigram-${version}-${revision}-${XBPS_TARGET_MACHINE}.tar.gz"
+checksum="000ebf5b7cb5b81a30bbd833406143cfcd22896a6144cd64fda73867c4ec31fc"
 nostrip=yes
-_pkgname=FlClashX
-distfiles="https://github.com/pluralplay/FlClashX/releases/download/v${version}/FlClashX-linux-amd64.deb"
-checksum=c214f518fbc9fd946866d35289f5f6cba06f1c3b3067289d632ad5a39ac51880
 do_install() {
-	sed -e "s/@appname@/${pkgname%-bin}/g" -e "s/@runname@/${_pkgname}/g" ${FILESDIR}/${pkgname%-bin}.sh > ${wrksrc}/${pkgname%-bin}.sh
-	vinstall ${wrksrc}/${pkgname%-bin}.sh 0755 usr/bin ${pkgname%-bin}
-
-	vmkdir usr/lib/${pkgname%-bin}
-	cp -r ${wrksrc}/opt/${_pkgname}/. ${DESTDIR}/usr/lib/${pkgname%-bin}/
-
-	sed -i "s|^Exec=.*|Exec=${pkgname%-bin}|; s|^Icon=.*|Icon=${pkgname%-bin}|" \
-		${wrksrc}/usr/share/applications/com.follow.clashx.desktop
-	vinstall ${wrksrc}/usr/share/applications/com.follow.clashx.desktop 0644 usr/share/applications ${pkgname%-bin}.desktop
-
-	vinstall ${wrksrc}/usr/share/icons/hicolor/256x256/apps/${_pkgname}.png 0644 usr/share/icons/hicolor/256x256/apps ${pkgname%-bin}.png
+	vbin bin/yurigram
+	vcopy share usr/share
+	vmkdir usr/share/applications
+	cat > "${DESTDIR}/usr/share/applications/yurigram.desktop" <<EOF
+[Desktop Entry]
+Name=Yurigram
+Comment=Yet another unofficial tdesktop client
+Exec=/usr/bin/yurigram %U
+Icon=rua.Yurigram.png
+Terminal=false
+Type=Application
+Categories=Network;InstantMessaging;
+MimeType=x-scheme-handler/tg;
+EOF
 }
