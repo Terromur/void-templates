@@ -222,7 +222,7 @@ pre_configure() {
         -not -path "${proton_patches_dir}/proton/winex11-mutter-cinnamon.patch" \
         -not -path "${proton_patches_dir}/protonfixes/*" \
         -not -path "${proton_patches_dir}/vkd3d-proton/*" \
-	-not -path "${proton_patches_dir}/wine-hotfixes/disabled/*" \
+        -not -path "${proton_patches_dir}/wine-hotfixes/disabled/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/em-fixups/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/0001-decouple-wineopenxr-from-steamvr-and-integrate-it-in.patch" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/0001-server-Dynamically-relocate-.exes-by-default-too.patch" \
@@ -240,6 +240,9 @@ pre_configure() {
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/wineboot-create-sqm-machine-id.patch" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/ole32-clipboard-stale-handle-1-tests.patch" \
         -not -path "${proton_patches_dir}/wine-hotfixes/pending/ole32-clipboard-stale-handle-2-fix.patch" \
+        -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/comctl32_animate_avi/*" \
+        -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/mmsystem.dll16-MIDIHDR_Refcount/*" \
+        -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/windowscodecs-TIFF_Support/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/winex11-Fixed-scancodes/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/winex11-ime-check-thread-data/*" \
         -not -path "${proton_patches_dir}/wine-hotfixes/wine-staging/kernel32-Debugger/*" \
