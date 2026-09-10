@@ -1,0 +1,67 @@
+# Template file for 'flclashx-bin'
+pkgname=flclashx-bin
+version=0.4.2
+revision=1
+archs="x86_64 aarch64"
+short_desc="Fork of FlClash, a multi-platform ClashMeta proxy client"
+maintainer="Ваше Имя <your.email@example.com>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/pluralplay/FlClashX"
+conflicts="flclashx>=0 flclashx-git flclashx-git-debug flclash-bin flclash>=0"
+provides="flclashx-${version}_${revision}"
+depends="
+    libayatana-appindicator
+    libkeybinder3
+"
+
+_pkgname=FlClashX
+base_url="https://github.com/pluralplay/FlClashX/releases/download/v${version}"
+
+# Архитектурно-зависимые distfiles и checksums
+case "$XBPS_TARGET_MACHINE" in
+    x86_64)
+        distfiles="${base_url}/${_pkgname}-linux-amd64.deb"
+        checksum=c214f518fbc9fd946866d35289f5f6cba06f1c3b3067289d632ad5a39ac51880
+        ;;
+    aarch64)
+        distfiles="${base_url}/${_pkgname}-linux-arm64.deb"
+        checksum=33ec32ebf855af7d6e88ae5fb3bb8a9aac149aab2ba8aafc8926dbe86c2b4bdd
+        ;;
+    *)
+        broken="No distfiles available for this target"
+        ;;
+esac
+
+# Извлечение архива data.tar.xz изнутри .deb пакета
+post_extract() {
+    if ls "${wrksrc}/data."* 1>/dev/null 2>&1; then
+        bsdtar -xf "${wrksrc}/data."* -C "${wrksrc}"
+    fi
+}
+
+do_install() {
+    # 1. Установка скрипта запуска
+    # Файл flclashx.sh должен находиться в srcpkgs/flclashx-bin/files/flclashx.sh
+    cp "${FILESDIR}/flclashx.sh" "${wrksrc}/flclashx.sh"
+    sed -i -e "
+        s/@appname@/${pkgname%-bin}/g
+        s/@runname@/${_pkgname}/g
+    " "${wrksrc}/flclashx.sh"
+    vinstall "${wrksrc}/flclashx.sh" 0755 usr/bin flclashx
+
+    # 2. Установка файлов приложения
+    vmkdir usr/lib/flclashx
+    cp -r "${wrksrc}/opt/${_pkgname}/." "${DESTDIR}/usr/lib/flclashx/"
+
+    # 3. Модификация и установка .desktop файла
+    # В этом пакете desktop-файл имеет reverse-DNS имя (com.follow.clashx.desktop)
+    sed -i -e "
+        s|^Exec=.*|Exec=${pkgname%-bin}|
+        s|^Icon=.*|Icon=${pkgname%-bin}|
+    " "${wrksrc}/usr/share/applications/com.follow.clashx.desktop"
+    
+    vinstall "${wrksrc}/usr/share/applications/com.follow.clashx.desktop" 0644 usr/share/applications flclashx.desktop
+
+    # 4. Установка иконки (в этом .deb поставляется только иконка 256x256)
+    vinstall "${wrksrc}/usr/share/icons/hicolor/256x256/apps/${_pkgname}.png" 0644 usr/share/icons/hicolor/256x256/apps flclashx.png
+}
