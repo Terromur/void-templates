@@ -1,8 +1,8 @@
 # Template file for 'llvm-mingw-bin'
 pkgname=llvm-mingw-bin
-version=23.1.1
+version=23.1.2
 revision=1
-_tag=20260908
+_tag=20260922
 _ucrt_suffix="-ucrt"
 _platform="ubuntu-22.04"
 _arch="x86_64"
@@ -11,7 +11,7 @@ maintainer="Terromur <terromuroz@proton.me>"
 license="custom:ISC"
 homepage="https://github.com/mstorsjo/llvm-mingw"
 distfiles="https://github.com/mstorsjo/llvm-mingw/releases/download/${_tag}/llvm-mingw-${_tag}${_ucrt_suffix}-${_platform}-${_arch}.tar.xz"
-checksum=2258c745e3155870c80793f3e8c80b28fbde11b9ff73c4c78783635b3440b092
+checksum=bb7bb7654b33d5aa8712acb837c963b2e0c56352560c76105270a3268c665c21
 archs="x86_64"
 skiprdeps='.*w64-mingw32.*'
 noverifyrdeps=yes
