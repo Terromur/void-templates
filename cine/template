@@ -1,5 +1,5 @@
 pkgname=cine
-version=1.8.5
+version=1.8.6
 revision=1
 build_style=meson
 make_check=yes
@@ -11,4 +11,4 @@ maintainer="Terromur <terromuroz@proton.me>"
 license="GPL-3.0-or-later"
 homepage="https://github.com/diegopvlk/Cine"
 distfiles="https://github.com/diegopvlk/Cine/archive/refs/tags/v${version}.tar.gz"
-checksum=0ee9a12991f8ad19a34400d65df96281dd6594aaed5a64039d9a386d410454fd
+checksum=49a450940d52f7cf2f341aa5296081bf1b549b35e89beed399c93277b2002778
