@@ -1,6 +1,6 @@
 # Template file for 'mercurygram-desktop-bin'
 pkgname=mercurygram-desktop-bin
-version=7.2.9.1
+version=7.2.9.2
 revision=1
 archs="x86_64"
 short_desc="Mercurygram Desktop messaging app"
@@ -11,13 +11,9 @@ depends="glib hicolor-icon-theme libdispatch libxcb libXcomposite libXdamage lib
 nostrip=yes
 nodebug=yes
 distfiles="https://github.com/Mercurygram/mdesktop/releases/download/v${version}/Mercurygram-${version}-linux-x86_64.tar.xz"
-checksum="41623ddbcc96a4a741219931db2e49487d534b29891245f48530b7fbdf9963bc"
+checksum="a2a6d63dc2698cd3e5f937de6ecc0f24dddec1b722ab9134f728e17e8bdff5d8"
 do_install() {
     vbin Mercurygram
-
-    vinstall "$FILESDIR/it.belloworld.mercurygram.desktop" 644 usr/share/applications
-
-    vmkdir usr/share/dbus-1/services
 
     for size in 16 32 48 64 128 256 512; do
         vinstall "$FILESDIR/icon${size}.png" 644 usr/share/icons/hicolor/${size}x${size}/apps it.belloworld.mercurygram.png
